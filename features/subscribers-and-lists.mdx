@@ -1,0 +1,141 @@
+---
+title: Subscribers and Lists
+description: Manage subscribers with custom attributes and organize them into public, private, or temporary lists with flexible opt-in modes
+---
+
+A **subscriber** is a recipient identified by an email address and name who receives messages from listmonk. Subscribers can be added to any number of lists and have custom attributes for segmentation and personalization.
+
+## Subscriber Attributes
+
+Attributes are arbitrary properties attached to subscribers in addition to their email and name. They are represented as a **JSON map** and provide powerful flexibility for personalization and segmentation.
+
+### JSON Format
+
+Subscriber attributes support complex nested data structures:
+
+```json
+{
+  "city": "Bengaluru",
+  "likes_tea": true,
+  "spoken_languages": ["English", "Malayalam"],
+  "projects": 3,
+  "stack": {
+    "frameworks": ["echo", "go"],
+    "languages": ["go", "python"],
+    "preferred_language": "go"
+  }
+}
+```
+
+<Note>
+It is not necessary for all subscribers to have the same attributes. Each subscriber can have their own unique set of attribute fields.
+</Note>
+
+### Using Attributes in Campaigns
+
+Attributes can be inserted into email campaigns using template expressions:
+
+```html
+Hello {{ .Subscriber.Name }}!
+
+You live in {{ .Subscriber.Attribs.city }} and have completed {{ .Subscriber.Attribs.projects }} projects.
+
+{{ if eq .Subscriber.Attribs.city "Bengaluru" }}
+  You live in Bangalore!
+{{ else }}
+  Where do you live?
+{{ end }}
+```
+
+## Subscription Statuses
+
+A subscriber can be added to one or more lists, and each relationship has a specific status:
+
+| Status | Description |
+|--------|-------------|
+| `unconfirmed` | The subscriber was added directly without explicit confirmation. They will receive messages sent to single opt-in campaigns. |
+| `confirmed` | The subscriber confirmed their subscription by clicking 'accept' in the confirmation email. Only confirmed subscribers receive messages to double opt-in lists. |
+| `unsubscribed` | The subscriber is unsubscribed from the list and will not receive any campaign messages sent to that list. |
+
+### Subscriber Statuses
+
+At the subscriber level (separate from subscription status), these statuses apply:
+
+- **`enabled`** - Active subscriber who can receive emails
+- **`disabled`** - Subscriber is disabled and won't receive emails
+- **`blocklisted`** - Subscriber is blocked from all communications
+
+## Lists
+
+A **list** (or mailing list) is a collection of subscribers grouped under a name, such as "clients" or "newsletter subscribers". Lists are used to organize subscribers and send emails to specific groups.
+
+### List Types
+
+Lists can have three types defined in the database schema:
+
+<CodeGroup>
+```sql schema.sql
+DROP TYPE IF EXISTS list_type CASCADE;
+CREATE TYPE list_type AS ENUM ('public', 'private', 'temporary');
+```
+</CodeGroup>
+
+| Type | Description |
+|------|-------------|
+| **Public** | Visible on public subscription pages and can be subscribed to by anyone |
+| **Private** | Hidden from public pages, subscribers must be added manually or via API |
+| **Temporary** | Used for short-term campaigns or imports, can be automatically cleaned up |
+
+### Opt-in Modes
+
+Lists support two opt-in modes:
+
+<CodeGroup>
+```sql schema.sql
+DROP TYPE IF EXISTS list_optin CASCADE;
+CREATE TYPE list_optin AS ENUM ('single', 'double');
+```
+</CodeGroup>
+
+#### Single Opt-in
+
+Subscribers are immediately added to the list and will receive campaign messages without additional confirmation.
+
+#### Double Opt-in
+
+Subscribers must explicitly confirm their subscription by clicking on a confirmation link in the email they receive. Until confirmation, their status is `unconfirmed` and they don't receive campaign messages.
+
+<Info>
+Double opt-in is recommended for compliance with regulations like GDPR as it ensures explicit consent.
+</Info>
+
+## List Schema
+
+The database structure for lists:
+
+```sql
+CREATE TABLE lists (
+    id              SERIAL PRIMARY KEY,
+    uuid            uuid NOT NULL UNIQUE,
+    name            TEXT NOT NULL,
+    type            list_type NOT NULL,
+    optin           list_optin NOT NULL DEFAULT 'single',
+    status          list_status NOT NULL DEFAULT 'active',
+    tags            VARCHAR(100)[],
+    description     TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at      TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## Orphan Subscribers
+
+Subscribers who are not part of any lists are considered **orphan** records. These subscribers exist in the system but won't receive any campaign messages since campaigns are sent to lists.
+
+## Segmentation
+
+Segmentation is the process of filtering a large list of subscribers into a smaller group based on arbitrary conditions, primarily based on their attributes. For example, you can filter subscribers who live in a particular city and create targeted campaigns for them.
+
+<Card title="Learn More About Segmentation" icon="filter" href="/features/querying-segmentation">
+  Discover how to use SQL-like expressions to query and segment subscribers
+</Card>

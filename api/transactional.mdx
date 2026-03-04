@@ -1,0 +1,318 @@
+---
+title: Transactional API
+description: API endpoint for sending transactional emails in Listmonk
+---
+
+Send transactional messages to one or more subscribers via preconfigured transactional templates. Supports sending to existing subscribers, fallback to external emails, or direct external sending.
+
+## Send Transactional Message
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/tx</path>
+  </endpoint>
+</api-endpoint>
+
+Send transactional messages to one or more subscribers using a preconfigured transactional template.
+
+### Body Parameters
+
+<ParamField body="subscriber_email" type="string">
+  Email of the subscriber. Can substitute with `subscriber_id`.
+</ParamField>
+
+<ParamField body="subscriber_id" type="number">
+  Subscriber's ID. Can substitute with `subscriber_email`.
+</ParamField>
+
+<ParamField body="subscriber_emails" type="string[]">
+  Multiple subscriber emails as alternative to `subscriber_email`.
+</ParamField>
+
+<ParamField body="subscriber_ids" type="number[]">
+  Multiple subscriber IDs as an alternative to `subscriber_id`.
+</ParamField>
+
+<ParamField body="subscriber_mode" type="string">
+  Subscriber lookup mode: `default`, `fallback`, or `external`. See below for details.
+</ParamField>
+
+<ParamField body="template_id" type="number" required>
+  ID of the transactional template to be used for the message.
+</ParamField>
+
+<ParamField body="from_email" type="string">
+  Optional sender email.
+</ParamField>
+
+<ParamField body="subject" type="string">
+  Optional subject. If empty, the subject defined on the template is used.
+</ParamField>
+
+<ParamField body="data" type="object">
+  Optional nested JSON map. Available in the template as `{{ .Tx.Data.* }}`.
+</ParamField>
+
+<ParamField body="headers" type="object[]">
+  Optional array of email headers.
+</ParamField>
+
+<ParamField body="messenger" type="string">
+  Messenger to send the message. Default is `email`.
+</ParamField>
+
+<ParamField body="content_type" type="string">
+  Email format options: `html`, `markdown`, `plain`.
+</ParamField>
+
+## Subscriber Modes
+
+The `subscriber_mode` parameter controls how the recipients (subscribers or non-subscriber recipients) are resolved.
+
+### Default Mode
+
+Recipients must exist as subscribers in the database. Pass either `subscriber_emails` or `subscriber_ids`.
+
+<RequestExample>
+```bash Default Mode
+curl -u "api_user:token" "http://localhost:9000/api/tx" -X POST \
+  -H 'Content-Type: application/json; charset=utf-8' \
+  --data-binary @- << EOF
+{
+    "subscriber_email": "user@test.com",
+    "template_id": 2,
+    "data": {
+        "order_id": "1234",
+        "date": "2022-07-30",
+        "items": [1, 2, 3]
+    },
+    "content_type": "html"
+}
+EOF
+```
+</RequestExample>
+
+### Fallback Mode
+
+Only accepts `subscriber_emails` and looks up subscribers in the database. If not found, sends the message to the e-mail anyway.
+
+<Note>
+In the template, apart from `{{ .Subscriber.Email }}`, other subscriber fields such as `.Name` will be empty. Use `{{ .Tx.Data.* }}` instead.
+</Note>
+
+### External Mode
+
+Sends to the given `subscriber_emails` without subscriber lookup in the database. Useful for sending to non-subscribers.
+
+<Note>
+In the template, apart from `{{ .Subscriber.Email }}`, other subscriber fields such as `.Name` will be empty. Use `{{ .Tx.Data.* }}` instead.
+</Note>
+
+<RequestExample>
+```bash External Mode
+curl -u "api_user:token" "http://localhost:9000/api/tx" -X POST \
+  -H 'Content-Type: application/json; charset=utf-8' \
+  --data-binary @- << EOF
+{
+    "subscriber_mode": "external",
+    "subscriber_emails": ["recipient@example.com"],
+    "template_id": 2,
+    "data": {
+        "name": "John",
+        "order_id": "1234"
+    },
+    "content_type": "html"
+}
+EOF
+```
+</RequestExample>
+
+### Response
+
+<ResponseField name="data" type="boolean">
+  Returns `true` if the message was successfully queued for sending.
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## File Attachments
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/tx</path>
+  </endpoint>
+</api-endpoint>
+
+To include file attachments in a transactional message, use the `multipart/form-data` Content-Type. Use `data` param for the parameters described above as a JSON object. Include any number of attachments via the `file` param.
+
+### Parameters
+
+<ParamField body="data" type="string" required>
+  JSON string containing the transactional message parameters.
+</ParamField>
+
+<ParamField body="file" type="file">
+  File attachment. Can be repeated for multiple files.
+</ParamField>
+
+<RequestExample>
+```bash With Attachments
+curl -u "api_user:token" "http://localhost:9000/api/tx" -X POST \
+  -F 'data="{
+    \"subscriber_email\": \"user@test.com\",
+    \"template_id\": 4
+  }"' \
+  -F 'file=@"/path/to/attachment.pdf"' \
+  -F 'file=@"/path/to/attachment2.pdf"'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Template Variables
+
+Transactional templates have access to the following variables:
+
+### Subscriber Variables
+- `{{ .Subscriber.Email }}` - Subscriber's email address
+- `{{ .Subscriber.Name }}` - Subscriber's name (empty in external/fallback mode)
+- `{{ .Subscriber.UUID }}` - Subscriber's UUID (empty in external mode)
+- `{{ .Subscriber.Attribs }}` - Custom subscriber attributes (empty in external/fallback mode)
+
+### Transactional Data
+- `{{ .Tx.Data.* }}` - Custom data passed in the API request
+- `{{ .Tx.Data.order_id }}` - Example: access order_id from data
+- `{{ .Tx.Data.name }}` - Example: access name from data
+
+### Example Template
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Order Confirmation</title>
+</head>
+<body>
+  <h1>Hi {{ if .Subscriber.Name }}{{ .Subscriber.Name }}{{ else }}{{ .Tx.Data.name }}{{ end }}!</h1>
+  
+  <p>Thank you for your order.</p>
+  
+  <p>Order ID: {{ .Tx.Data.order_id }}</p>
+  <p>Date: {{ .Tx.Data.date }}</p>
+  
+  <h2>Items:</h2>
+  <ul>
+  {{ range .Tx.Data.items }}
+    <li>Item {{ . }}</li>
+  {{ end }}
+  </ul>
+</body>
+</html>
+```
+
+## Use Cases
+
+### Order Confirmations
+Send order receipts and confirmations to customers after purchase.
+
+```json
+{
+  "subscriber_email": "customer@example.com",
+  "template_id": 1,
+  "data": {
+    "order_number": "ORD-12345",
+    "total": "$99.99",
+    "items": ["Product A", "Product B"]
+  }
+}
+```
+
+### Password Resets
+Send password reset links to users.
+
+```json
+{
+  "subscriber_mode": "external",
+  "subscriber_emails": ["user@example.com"],
+  "template_id": 2,
+  "data": {
+    "reset_link": "https://example.com/reset?token=abc123",
+    "expiry": "24 hours"
+  }
+}
+```
+
+### Welcome Emails
+Send personalized welcome messages to new users.
+
+```json
+{
+  "subscriber_email": "newuser@example.com",
+  "template_id": 3,
+  "data": {
+    "activation_link": "https://example.com/activate?token=xyz789",
+    "username": "newuser"
+  }
+}
+```
+
+### Notifications
+Send system or account notifications.
+
+```json
+{
+  "subscriber_ids": [123, 456, 789],
+  "template_id": 4,
+  "data": {
+    "notification_type": "Security Alert",
+    "message": "A new login was detected from an unknown device",
+    "timestamp": "2024-03-04 10:30:00"
+  }
+}
+```
+
+## Best Practices
+
+### Use Appropriate Mode
+- Use `default` mode for messages to your subscribers
+- Use `external` mode for messages to non-subscribers (e.g., potential customers)
+- Use `fallback` mode when you want to send regardless of subscription status
+
+### Template Data
+- Always provide data in `{{ .Tx.Data }}` when using external/fallback modes
+- Use conditional checks in templates: `{{ if .Subscriber.Name }}...{{ else }}...{{ end }}`
+- Keep data structure consistent across API calls
+
+### Performance
+- Batch multiple recipients using `subscriber_ids` or `subscriber_emails` when possible
+- Use appropriate `content_type` (plain text is faster than HTML)
+- Keep attachments small to avoid delays
+
+### Error Handling
+- Check response status codes
+- Implement retry logic for failed requests
+- Log transaction IDs for troubleshooting
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Message queued successfully
+- `400 Bad Request` - Invalid parameters or missing required fields
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - Template or subscriber not found
+- `500 Internal Server Error` - Server error

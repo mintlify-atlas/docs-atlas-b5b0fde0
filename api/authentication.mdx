@@ -1,0 +1,270 @@
+---
+title: Authentication
+description: Learn how to authenticate API requests using BasicAuth or Authorization tokens, manage user roles, and configure permissions for API access
+---
+
+HTTP API requests support BasicAuth and Authorization `token` headers. API users and tokens with the required permissions can be created and managed on the admin UI under **Admin → Users**.
+
+## Authentication Methods
+
+### BasicAuth
+
+Use HTTP BasicAuth with your API username and token:
+
+```bash
+curl -u "api_user:token" http://localhost:9000/api/lists
+```
+
+The username and token should be created in the admin UI. The server will validate the credentials on each request.
+
+### Authorization Token
+
+Alternatively, you can pass credentials using the `Authorization` header with the format `token username:token`:
+
+```bash
+curl -H "Authorization: token api_user:token" http://localhost:9000/api/lists
+```
+
+Both authentication methods are equally secure when used over HTTPS.
+
+## Creating API Users
+
+To create an API user:
+
+1. Navigate to **Admin → Users** in the Listmonk dashboard
+2. Click "Create New User"
+3. Set the user type to **API** (from schema.sql:11, user types are `user` or `api`)
+4. Assign appropriate user roles and list roles
+5. Generate or set a secure token
+6. Save the user
+
+### User Types
+
+From the database schema (schema.sql:11), there are two user types:
+
+- **`user`** - Regular dashboard users with login access
+- **`api`** - API-only users for programmatic access
+
+### User Status
+
+Users can have the following statuses (schema.sql:12):
+
+- **`enabled`** - User is active and can authenticate
+- **`disabled`** - User is inactive and cannot authenticate
+
+## Permissions System
+
+Listmonk uses a role-based access control (RBAC) system with two types of roles:
+
+### User Role
+
+A **User role** defines general permissions allowed for a user. User roles are created under **Admin → User roles** and then attached to a user.
+
+User roles control access to global resources such as:
+
+- `settings:get` - View settings
+- `settings:manage` - Manage settings
+- `subscribers:get_all` - View all subscribers
+- `subscribers:manage` - Create, update, and delete subscribers
+- `lists:get_all` - View all lists
+- `lists:manage_all` - Create, update, and delete lists
+- `campaigns:get_all` - View all campaigns
+- `campaigns:manage_all` - Create, update, and delete campaigns
+- `templates:get` - View templates
+- `templates:manage` - Manage templates
+- `media:get` - View media files
+- `media:manage` - Upload and delete media files
+- `users:get` - View users
+- `users:manage` - Manage users
+- `roles:get` - View roles
+- `roles:manage` - Manage roles
+
+### List Role
+
+A **List role** defines read/write permissions per-list. List roles can be defined under **Admin → User roles** and then attached to a user.
+
+List roles provide granular control over which specific lists a user can access or modify.
+
+**Important:** In a User role, `lists:get_all` or `lists:manage_all` permissions supersede and override any list-specific permissions defined in a List role.
+
+### Permission Example
+
+To allow an API user to manage lists and subscriber list subscriptions:
+
+1. Create a User role with `lists:manage_all` and `subscribers:manage` permissions
+2. Attach this User role to your API user
+3. The user can now perform operations on lists and manage subscriber subscriptions
+
+## Authentication Implementation
+
+From the source code (cmd/handlers.go:86-98), all authenticated API endpoints use middleware to verify credentials:
+
+```go
+// Attach a middleware to the group that checks for auth.
+g = e.Group("", a.auth.Middleware, func(next echo.HandlerFunc) echo.HandlerFunc {
+    return func(c echo.Context) error {
+        u := c.Get(auth.UserHTTPCtxKey)
+
+        // On no-auth, respond with a JSON error.
+        if err, ok := u.(*echo.HTTPError); ok {
+            return err
+        }
+
+        return next(c)
+    }
+})
+```
+
+When authentication fails, the API returns a `403 Forbidden` error:
+
+```json
+{
+  "message": "Session expired or invalid. Must relogin"
+}
+```
+
+## User Sessions
+
+Authenticated users have sessions stored in the database (schema.sql:353-359):
+
+```sql
+CREATE TABLE sessions (
+    id TEXT NOT NULL PRIMARY KEY,
+    data JSONB DEFAULT '{}'::jsonb NOT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT now() NOT NULL
+);
+```
+
+Sessions are managed server-side and are used for both web dashboard and API authentication.
+
+## Security Considerations
+
+### Use HTTPS
+
+Always use HTTPS in production to encrypt authentication credentials in transit. Both BasicAuth and Authorization tokens transmit credentials with each request.
+
+### Secure Token Storage
+
+API tokens should be:
+
+- Stored securely (environment variables, secret managers)
+- Never committed to version control
+- Rotated regularly
+- Unique per application or integration
+
+### Principle of Least Privilege
+
+Assign the minimum permissions required for each API user:
+
+- Read-only users should only have `get` permissions
+- Limit `manage_all` permissions to trusted integrations
+- Use list-specific roles when possible
+
+### CORS Configuration
+
+If your API is accessed from web applications, configure CORS origins in the settings (schema.sql:264):
+
+```json
+{
+  "security.cors_origins": ["https://trusted-domain.com"]
+}
+```
+
+### OIDC Authentication
+
+Listmonk also supports OIDC (OpenID Connect) for SSO integration (schema.sql:263). However, OIDC is primarily for dashboard users, not programmatic API access.
+
+## Two-Factor Authentication (2FA)
+
+Users can enable TOTP-based 2FA for additional security (schema.sql:14):
+
+- **`none`** - No 2FA enabled
+- **`totp`** - Time-based One-Time Password (TOTP) enabled
+
+From the source code (cmd/auth.go:750-789), users can generate TOTP QR codes:
+
+```go
+// GenerateTOTPQR generates a TOTP QR code for a user to scan with their authenticator app.
+func (a *App) GenerateTOTPQR(c echo.Context) error {
+    u := c.Get(auth.UserHTTPCtxKey).(auth.User)
+
+    // If TOTP is already enabled, don't generate a new key.
+    if u.TwofaType == models.TwofaTypeTOTP {
+        return echo.NewHTTPError(http.StatusBadRequest, a.i18n.T("users.twoFAAlreadyEnabled"))
+    }
+
+    // Generate a new TOTP key.
+    key, err := totp.Generate(totp.GenerateOpts{
+        Issuer:      a.cfg.SiteName,
+        AccountName: u.Email.String,
+    })
+    // ...
+}
+```
+
+**Note:** 2FA is enforced during login and may require additional verification steps for dashboard access, but API token authentication bypasses 2FA verification.
+
+## Example: Authenticated Request
+
+Here's a complete example of making an authenticated API request to fetch lists:
+
+```bash
+# Using BasicAuth
+curl -u "my_api_user:my_secure_token" \
+  -H "Content-Type: application/json" \
+  http://localhost:9000/api/lists
+
+# Using Authorization header
+curl -H "Authorization: token my_api_user:my_secure_token" \
+  -H "Content-Type: application/json" \
+  http://localhost:9000/api/lists
+```
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "uuid": "5e1e3c7d-4f32-4b8a-9f7e-3d2c1a0b9e8d",
+      "name": "Default List",
+      "type": "public",
+      "optin": "single",
+      "tags": [],
+      "description": "Default subscriber list",
+      "created_at": "2024-01-01T00:00:00.000000+00:00",
+      "updated_at": "2024-01-01T00:00:00.000000+00:00"
+    }
+  ]
+}
+```
+
+## Logging Out
+
+To invalidate a session, call the logout endpoint:
+
+```bash
+curl -X POST \
+  -H "Authorization: token api_user:token" \
+  http://localhost:9000/api/logout
+```
+
+From the source code (cmd/auth.go:167-174):
+
+```go
+// Logout logs a user out.
+func (a *App) Logout(c echo.Context) error {
+    // Delete the session from the DB and cookie.
+    sess := c.Get(auth.SessionKey).(*simplesessions.Session)
+    _ = sess.Destroy()
+
+    return c.JSON(http.StatusOK, okResp{true})
+}
+```
+
+## Next Steps
+
+- [OpenAPI Reference](https://listmonk.app/docs/swagger/) - Explore all available authenticated endpoints
+- Review the user and role management in the admin UI
+- Set up proper permissions for your API users

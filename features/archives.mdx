@@ -1,0 +1,287 @@
+---
+title: Public Archives
+description: Publish campaign archives to a public web interface for newsletter back-catalogs and content repositories
+---
+
+Listmonk provides a **public archive** feature that maintains a browsable collection of past campaigns on a public web interface. This is ideal for creating newsletter back-catalogs or content repositories.
+
+## Enabling Archives
+
+The archive feature must be enabled in Settings before campaigns can be published:
+
+<Steps>
+  <Step title="Navigate to Settings">
+    Go to **Settings → Settings → General**
+  </Step>
+  
+  <Step title="Enable Archive">
+    Enable the option: **"Enable public mailing list archive"**
+  </Step>
+</Steps>
+
+<CodeGroup>
+```sql schema.sql
+INSERT INTO settings (key, value) VALUES
+    ('app.enable_public_archive', 'true'),
+    ('app.enable_public_archive_rss_content', 'true');
+```
+</CodeGroup>
+
+## Publishing Campaigns to Archives
+
+Once the global archive setting is enabled, you can publish individual campaigns:
+
+<Steps>
+  <Step title="Create or Edit Campaign">
+    Navigate to **Campaigns → Create new** or edit an existing campaign
+  </Step>
+  
+  <Step title="Enable Archive Publishing">
+    Under the **Archive** section, enable: **"Publish to public archive"**
+  </Step>
+  
+  <Step title="Configure Archive Settings" >
+    Set optional archive template and metadata (see below)
+  </Step>
+</Steps>
+
+### Archive Schema Fields
+
+<CodeGroup>
+```sql schema.sql
+CREATE TABLE campaigns (
+    ...
+    -- Publishing settings
+    archive             BOOLEAN NOT NULL DEFAULT false,
+    archive_slug        TEXT NULL UNIQUE,
+    archive_template_id INTEGER REFERENCES templates(id) ON DELETE SET NULL,
+    archive_meta        JSONB NOT NULL DEFAULT '{}',
+    ...
+);
+```
+</CodeGroup>
+
+## Archive Metadata
+
+When using template variables that depend on subscriber data (like `{{ .Subscriber.Name }}`), you must provide **Campaign metadata** since archived campaigns aren't associated with specific subscribers.
+
+The metadata is a JSON object that replaces `.Subscriber` when rendering the archive:
+
+<CodeGroup>
+```json Campaign Metadata Example
+{
+  "UUID": "5a837423-a186-5623-9a87-82691cbe3631",
+  "email": "example@example.com",
+  "name": "Reader",
+  "attribs": {}
+}
+```
+</CodeGroup>
+
+<Note>
+If your campaign template includes `{{ .Subscriber.FirstName }}`, set `"name": "Reader"` in the metadata so it renders as "Reader" in the archive.
+</Note>
+
+### Metadata Fields
+
+The metadata object can include:
+
+- **UUID**: Subscriber UUID (required for tracking with TrackLink)
+- **email**: Display email
+- **name**: Display name
+- **attribs**: Custom attributes object (can be empty `{}`)
+
+## Archive Templates
+
+Campaigns can use a specific template for archive rendering:
+
+- **archive_template_id**: References a template from the templates table
+- If not specified, uses the campaign's regular template
+
+<CodeGroup>
+```go cmd/campaigns.go
+if o.ArchiveTemplateID.Valid && o.ArchiveTemplateID.Int != 0 {
+    o.ArchiveTemplateID = o.TemplateID
+}
+```
+</CodeGroup>
+
+## Archive URL Slugs
+
+Customize the URL for archived campaigns using slugs:
+
+<CodeGroup>
+```go cmd/campaigns.go
+if req.ArchiveSlug != "" {
+    // Format the slug to be alpha-numeric-dash.
+    s := strings.ToLower(req.ArchiveSlug)
+    s = strings.TrimSpace(reSlug.ReplaceAllString(s, " "))
+    s = regexpSpaces.ReplaceAllString(s, "-")
+    req.ArchiveSlug = s
+}
+```
+</CodeGroup>
+
+### Slug Format Rules
+
+- Converted to lowercase
+- Non-alphanumeric characters replaced with spaces, then converted to hyphens
+- Trimmed of whitespace
+- Must be unique across all campaigns
+
+**Example:** `"My Amazing Newsletter!"` → `"my-amazing-newsletter"`
+
+## Tracking in Archives
+
+When **individual subscriber tracking** is enabled, the TrackLink function requires a valid subscriber UUID:
+
+<Warning>
+Any clicks on a TrackLink from the archived campaign will be counted towards the subscriber UUID provided in the campaign metadata.
+</Warning>
+
+From the documentation:
+> When individual subscriber tracking is enabled, TrackLink requires that a UUID of an existing user is provided as part of the campaign metadata. Any clicks on a TrackLink from the archived campaign will be counted towards that subscriber.
+
+## Previewing Archives
+
+Before publishing, preview how your campaign will appear in the archive:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// PreviewCampaignArchive renders the public campaign archives page.
+func (a *App) PreviewCampaignArchive(c echo.Context) error {
+    // Get the campaign ID.
+    id := getID(c)
+
+    // Check if the user has access to the campaign.
+    if err := a.checkCampaignPerm(auth.PermTypeGet, id, c); err != nil {
+        return err
+    }
+
+    // Fetch the campaign body from the DB.
+    tplID, _ := strconv.Atoi(c.FormValue("template_id"))
+    camp, err := a.core.GetCampaignForPreview(id, tplID)
+    if err != nil {
+        return err
+    }
+
+    camp.ArchiveMeta = json.RawMessage([]byte(c.FormValue("archive_meta")))
+
+    // "Compile" the campaign template with appropriate data.
+    res, err := a.compileArchiveCampaigns([]models.Campaign{camp})
+    if err != nil {
+        return c.Render(http.StatusInternalServerError, tplMessage,
+            makeMsgTpl(a.i18n.T("public.errorTitle"), "", 
+                      a.i18n.Ts("public.errorFetchingCampaign")))
+    }
+
+    // Render the campaign body.
+    out := res[0].Campaign
+    msg, err := a.manager.NewCampaignMessage(out, res[0].Subscriber)
+    if err != nil {
+        a.log.Printf("error rendering campaign: %v", err)
+        return c.Render(http.StatusInternalServerError, tplMessage,
+            makeMsgTpl(a.i18n.T("public.errorTitle"), "", 
+                      a.i18n.Ts("public.errorFetchingCampaign")))
+    }
+
+    return c.HTML(http.StatusOK, string(msg.Body()))
+}
+```
+</CodeGroup>
+
+## Updating Archive Status
+
+Archive settings can be updated independently from campaign content:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// UpdateCampaignArchive handles campaign archive status modification.
+func (a *App) UpdateCampaignArchive(c echo.Context) error {
+    id := getID(c)
+
+    req := struct {
+        Archive     bool        `json:"archive"`
+        TemplateID  int         `json:"archive_template_id"`
+        Meta        models.JSON `json:"archive_meta"`
+        ArchiveSlug string      `json:"archive_slug"`
+    }{}
+    if err := c.Bind(&req); err != nil {
+        return err
+    }
+
+    if req.ArchiveSlug != "" {
+        // Format the slug to be alpha-numeric-dash.
+        s := strings.ToLower(req.ArchiveSlug)
+        s = strings.TrimSpace(reSlug.ReplaceAllString(s, " "))
+        s = regexpSpaces.ReplaceAllString(s, "-")
+        req.ArchiveSlug = s
+    }
+
+    if err := a.core.UpdateCampaignArchive(
+        id, req.Archive, req.TemplateID, req.Meta, req.ArchiveSlug
+    ); err != nil {
+        return err
+    }
+
+    return c.JSON(http.StatusOK, okResp{req})
+}
+```
+</CodeGroup>
+
+## RSS Feed
+
+Listmonk can provide an RSS feed of archived campaigns:
+
+<CodeGroup>
+```sql schema.sql
+INSERT INTO settings (key, value) VALUES
+    ('app.enable_public_archive_rss_content', 'true');
+```
+</CodeGroup>
+
+When enabled, subscribers and visitors can subscribe to your newsletter archive via RSS readers.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Newsletter Archives" icon="book">
+    Create a browsable archive of past newsletters for new subscribers
+  </Card>
+  
+  <Card title="Content Repository" icon="folder">
+    Build a public knowledge base from campaign content
+  </Card>
+  
+  <Card title="SEO Benefits" icon="magnifying-glass">
+    Make campaign content searchable and indexable by search engines
+  </Card>
+  
+  <Card title="Social Sharing" icon="share-nodes">
+    Share specific campaign URLs on social media
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Generic Metadata">
+    For archived campaigns, use generic display names like "Reader" instead of actual subscriber names to maintain privacy.
+  </Accordion>
+  
+  <Accordion title="Custom Archive Templates">
+    Consider creating specific templates for archives that remove personalized greetings and subscriber-specific content.
+  </Accordion>
+  
+  <Accordion title="Meaningful Slugs">
+    Use descriptive slugs that reflect the campaign content for better SEO and user experience.
+  </Accordion>
+  
+  <Accordion title="Remove Tracking">
+    For public archives, consider using templates without `{{ TrackView }}` pixels to respect visitor privacy.
+  </Accordion>
+</AccordionGroup>
+
+<Info>
+Archives are rendered using the same template engine as campaigns, so all template functions and Sprig functions are available.
+</Info>

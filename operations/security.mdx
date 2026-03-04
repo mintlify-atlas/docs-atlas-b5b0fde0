@@ -1,0 +1,477 @@
+---
+title: Security Best Practices
+description: Security configuration, authentication, permissions, and reporting vulnerabilities in Listmonk
+---
+
+## Security Overview
+
+Listmonk provides multiple layers of security controls including multi-user authentication, granular permissions, API access controls, and configurable security settings.
+
+## Authentication
+
+### Multi-User System (v4.0.0+)
+
+Listmonk supports user accounts with username/password or OIDC authentication.
+
+#### User Types
+
+**Regular Users:**
+- Login with username and password
+- Can use OIDC (OpenID Connect) if configured
+- Access admin dashboard at `/admin/login`
+
+**API Users:**
+- Programmatic access via APIs
+- Auto-generated secret token (32 characters)
+- No dashboard access
+- Token-based authentication
+
+### Creating Secure Users
+
+<Steps>
+  <Step title="Create user account">
+    Navigate to **Settings → Users** and create a new user with appropriate role.
+  </Step>
+  
+  <Step title="Assign permissions">
+    Select a user role (e.g., Admin, Editor) or create a custom role with specific permissions.
+  </Step>
+  
+  <Step title="For API access">
+    Create an API user type to get an auto-generated token. Store this token securely.
+  </Step>
+</Steps>
+
+### Password Requirements
+
+When creating users via environment variables during installation:
+
+- `LISTMONK_ADMIN_USER`: Minimum 3 characters
+- `LISTMONK_ADMIN_PASSWORD`: Minimum 8 characters
+
+```bash
+# Example: Installing with admin user
+export LISTMONK_ADMIN_USER="admin"
+export LISTMONK_ADMIN_PASSWORD="secure-password-here"
+./listmonk --install
+```
+
+### OIDC Authentication
+
+Listmonk supports OpenID Connect for single sign-on integration.
+
+**Configuration:** See [OIDC documentation](/advanced/oidc) for detailed setup with providers like:
+- Google
+- GitHub
+- Azure AD
+- Keycloak
+- Other OIDC-compliant providers
+
+## Roles and Permissions
+
+<Note>
+  Starting v4.0.0, Listmonk includes a comprehensive permission system. See [Roles and Permissions](/advanced/roles-permissions) for full details.
+</Note>
+
+### User Roles
+
+User roles are collections of permissions assigned to user accounts:
+
+| Permission Group | Key Permissions                                             |
+| ---------------- | ----------------------------------------------------------- |
+| Lists            | `lists:get_all`, `lists:manage_all`                         |
+| Subscribers      | `subscribers:get`, `subscribers:manage`, `subscribers:import` |
+| Campaigns        | `campaigns:get`, `campaigns:manage`, `campaigns:get_analytics` |
+| Users            | `users:get`, `users:manage`, `roles:manage`                 |
+| Settings         | `settings:get`, `settings:manage`, `settings:maintain`      |
+
+### Dangerous Permissions
+
+<Warning>
+  These permissions grant elevated access and should only be given to **trusted users**.
+</Warning>
+
+#### `subscribers:sql_query`
+
+Allows execution of arbitrary SQL expressions:
+
+```sql
+-- Example: Custom subscriber query
+SELECT email, name, attribs->>'city' 
+FROM subscribers 
+WHERE attribs->>'type' = 'premium'
+```
+
+**Security implications:**
+- Executes arbitrary (but read-only) SQL
+- Can query all lists and subscribers directly
+- Bypasses individual list permissions
+- Can access Postgres configuration and system features
+
+**Mitigation:** Create a restricted Postgres role:
+
+```sql
+CREATE ROLE listmonk_app WITH
+    LOGIN
+    PASSWORD 'secure-password'
+    NOSUPERUSER
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION;
+
+-- Grant only necessary permissions
+GRANT CONNECT ON DATABASE listmonk TO listmonk_app;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO listmonk_app;
+```
+
+#### `users:manage`
+
+<Warning>
+  Allows creation of users with **any role, including Super Admin**. Only assign to Super Admin accounts.
+</Warning>
+
+Users with this permission can:
+- Create, update, and delete any user account
+- Assign any role to users
+- Escalate their own privileges
+
+### List Roles
+
+List roles provide per-list permissions:
+
+- **View:** Read-only access to specific lists
+- **Manage:** Update and manage specific lists
+
+List roles are overridden by `lists:get_all` and `lists:manage_all` permissions.
+
+## API Security
+
+### Rate Limiting
+
+Listmonk includes built-in API rate limiting:
+
+**HTTP 429 Response:** Too many requests
+
+```json
+{
+  "message": "Too many requests",
+  "status": 429
+}
+```
+
+**Best practices:**
+- Implement exponential backoff in API clients
+- Cache responses when possible
+- Use webhook endpoints instead of polling
+
+### API Authentication
+
+#### Creating API Users
+
+```bash
+# During installation
+export LISTMONK_ADMIN_USER="admin"
+export LISTMONK_ADMIN_PASSWORD="your-password"
+export LISTMONK_ADMIN_API_USER="api-client"
+./listmonk --install
+
+# Token will be output to stderr
+# export LISTMONK_ADMIN_API_TOKEN="<generated-token>"
+```
+
+#### Using API Tokens
+
+```bash
+# Basic auth with token
+curl -u "api-client:<token>" https://listmonk.example.com/api/subscribers
+
+# Authorization header
+curl -H "Authorization: Basic $(echo -n 'api-client:<token>' | base64)" \
+  https://listmonk.example.com/api/subscribers
+```
+
+### Webhook Security
+
+Bounce webhook endpoints support signed verification:
+
+**Sendgrid/Twilio:**
+
+```
+https://listmonk.example.com/webhooks/service/sendgrid
+```
+
+Refer to [Sendgrid webhook security](https://docs.sendgrid.com/for-developers/tracking-events/getting-started-event-webhook-security-features).
+
+## HTTP Routes and Firewall Configuration
+
+When configuring auth proxies and WAFs:
+
+### Private Admin Endpoints
+
+Restrict access to internal networks or authenticated users:
+
+| Methods | Route              | Description          |
+| ------- | ------------------ | -------------------- |
+| `*`     | `/api/*`           | Admin APIs           |
+| `GET`   | `/admin/*`         | Admin UI and pages   |
+| `POST`  | `/webhooks/bounce` | Admin bounce webhook |
+
+**Example nginx configuration:**
+
+```nginx
+# Restrict admin routes
+location ~ ^/(api|admin)/ {
+    # Allow only internal IPs
+    allow 10.0.0.0/8;
+    allow 172.16.0.0/12;
+    deny all;
+    
+    proxy_pass http://listmonk:9000;
+}
+```
+
+### Public Endpoints
+
+Expose to the internet:
+
+| Methods     | Route                 | Description                       |
+| ----------- | --------------------- | --------------------------------- |
+| `GET, POST` | `/subscription/*`     | HTML subscription pages           |
+| `GET`       | `/link/*`             | Tracked link redirection          |
+| `GET`       | `/campaign/*`         | Pixel tracking image              |
+| `GET`       | `/public/*`           | Static files for subscription pages |
+| `POST`      | `/webhooks/service/*` | Bounce webhooks (AWS, Sendgrid)   |
+| `GET`       | `/uploads/*`          | Uploaded media files              |
+
+## Database Security
+
+### Connection Security
+
+Enable SSL for database connections in `config.toml`:
+
+```toml
+[db]
+host = "localhost"
+port = 5432
+user = "listmonk"
+password = "secure-password"
+database = "listmonk"
+
+ssl_mode = "require"  # Options: disable, require, verify-ca, verify-full
+
+# Optional SSL certificate paths
+params = "sslcert=/path/to/client-cert.pem sslkey=/path/to/client-key.pem sslrootcert=/path/to/ca.pem"
+```
+
+### Network Isolation
+
+For Docker deployments:
+
+```yaml
+services:
+  db:
+    image: postgres:13
+    networks:
+      - listmonk-internal
+    # Don't expose port to host
+    # ports:
+    #   - "5432:5432"
+  
+  app:
+    image: listmonk/listmonk:latest
+    networks:
+      - listmonk-internal
+      - web
+
+networks:
+  listmonk-internal:
+    internal: true  # No external access
+  web:
+    external: true
+```
+
+## Media Upload Security
+
+### File Type Restrictions
+
+Configure allowed file types in **Settings → Media**:
+
+<Warning>
+  Allowing certain file types like `.svg`, `.html`, or `.js` can enable stored XSS attacks through uploaded files.
+</Warning>
+
+**Recommendations:**
+- Only allow necessary file types (e.g., `.jpg`, `.png`, `.pdf`)
+- Disable `.svg` if not required for your use case
+- Restrict upload permissions to trusted users
+
+### Upload Directory Permissions
+
+```bash
+# Set proper ownership
+sudo chown -R listmonk:listmonk /path/to/uploads
+
+# Restrict permissions
+chmod 755 /path/to/uploads
+```
+
+## Content Security
+
+### Campaign HTML Sanitization
+
+<Note>
+  Listmonk is a **full-fledged HTML content management system** and allows arbitrary HTML including `<script>` tags, which is legitimate for many use cases.
+</Note>
+
+Campaign previews are **iframe-sandboxed** in the admin UI. Published archive views execute scripts as intended.
+
+**In multi-user environments:**
+- Assign campaign management permissions only to trusted users
+- Use list roles to restrict campaign access
+- Review campaigns before publishing if necessary
+
+### Template Security
+
+Templates use Go's text/template and [Sprig functions](https://masterminds.github.io/sprig/):
+
+<Warning>
+  Templates can execute Turing-complete code. Avoid giving template management permissions to untrusted users.
+</Warning>
+
+Example of potential issues:
+
+```go
+{{- range $i := until 1000000 -}}
+  {{- $data := dict "key" (randAlpha 1000) -}}
+{{- end -}}
+```
+
+## SMTP Security
+
+### SMTP Authentication
+
+Always use authenticated SMTP in `Settings → SMTP`:
+
+```toml
+# config.toml is not used for SMTP - configure in admin UI
+# Settings shown for reference
+```
+
+**Best practices:**
+- Use TLS/SSL connections (port 587 or 465)
+- Use dedicated SMTP credentials
+- Enable DKIM signing
+- Configure SPF and DMARC records
+
+### Bounce Webhook Authentication
+
+Secure bounce webhooks with service-specific verification:
+
+**AWS SES:** Verify SNS signature
+**Sendgrid:** Verify signed events
+
+See [Bounces documentation](/advanced/bounces) for configuration.
+
+## Security Headers
+
+Recommended reverse proxy security headers:
+
+```nginx
+# nginx configuration
+add_header X-Frame-Options "SAMEORIGIN" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header X-XSS-Protection "1; mode=block" always;
+add_header Referrer-Policy "no-referrer-when-downgrade" always;
+add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
+```
+
+## Reporting Security Vulnerabilities
+
+<Warning>
+  If you discover a security vulnerability, report it via GitHub [Security Advisories](https://github.com/knadh/listmonk/security/advisories).
+</Warning>
+
+### What NOT to Report
+
+These scenarios are **not security vulnerabilities** or are **acceptable risks**:
+
+#### 1. SQL Injection via Subscriber Query
+
+- The subscriber query feature (`?query=` parameter) intentionally supports arbitrary SQL
+- Protected by `subscribers:sql_query` permission
+- Read-only execution
+- [Documented risks](/advanced/roles-permissions#subscriberssql-query-warning)
+
+#### 2. Stored XSS via SVG
+
+- Listmonk allows uploading arbitrary file types including `.svg`, `.html`, `.js`
+- Admin can configure allowed file types in Settings → Media
+- Disable risky file types if they're a concern in your environment
+
+#### 3. Stored XSS in Campaign HTML
+
+- Listmonk is a CMS that intentionally allows arbitrary HTML and `<script>` tags
+- Campaign previews are iframe-sandboxed
+- Archive views execute scripts as designed
+- Control access with campaign management permissions
+
+#### 4. ReDoS/DoS in Templating
+
+- Template system provides full Go templating + Sprig functions
+- Allows Turing-complete code execution (by design)
+- Can write loops or memory-intensive operations
+- Control access with template management permissions
+
+## Security Checklist
+
+<Steps>
+  <Step title="Authentication">
+    - [ ] Remove legacy `admin_username` and `admin_password` from config
+    - [ ] Use strong passwords (min 8 characters)
+    - [ ] Create separate API users for integrations
+    - [ ] Enable OIDC if available
+  </Step>
+  
+  <Step title="Permissions">
+    - [ ] Follow principle of least privilege
+    - [ ] Restrict `subscribers:sql_query` to trusted users only
+    - [ ] Limit `users:manage` to Super Admin
+    - [ ] Use list roles for multi-tenant setups
+  </Step>
+  
+  <Step title="Network">
+    - [ ] Use HTTPS/TLS for all connections
+    - [ ] Restrict admin routes to internal network
+    - [ ] Enable database SSL (`ssl_mode = "require"`)
+    - [ ] Implement firewall rules
+  </Step>
+  
+  <Step title="Database">
+    - [ ] Use strong database password
+    - [ ] Isolate database in private network
+    - [ ] Enable SSL connections
+    - [ ] Regular backups
+    - [ ] Run VACUUM periodically
+  </Step>
+  
+  <Step title="Media">
+    - [ ] Restrict allowed file types
+    - [ ] Disable `.svg`, `.html`, `.js` if not needed
+    - [ ] Set proper directory permissions
+    - [ ] Limit upload permissions to trusted users
+  </Step>
+  
+  <Step title="Monitoring">
+    - [ ] Monitor failed login attempts
+    - [ ] Review API rate limit hits
+    - [ ] Check database connection logs
+    - [ ] Set up log aggregation
+  </Step>
+</Steps>
+
+## Additional Resources
+
+- [Roles and Permissions](/advanced/roles-permissions)
+- [OIDC Authentication](/advanced/oidc)
+- [API Documentation](/api/overview)
+- [Security Advisories](https://github.com/knadh/listmonk/security/advisories)

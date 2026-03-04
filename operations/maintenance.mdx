@@ -1,0 +1,415 @@
+---
+title: Maintenance
+description: Database maintenance, backups, performance optimization, and monitoring for Listmonk
+---
+
+## Database Maintenance
+
+### Regular VACUUM Operations
+
+<Warning>
+  `VACUUM ANALYZE` is a blocking operation. All database queries can pause during execution on large databases (typically a few seconds).
+</Warning>
+
+Running [`VACUUM ANALYZE`](https://www.postgresql.org/docs/current/sql-vacuum.html) on large Postgres databases at regular intervals is **highly recommended**.
+
+**Benefits:**
+- Reclaims disk space from deleted rows
+- Updates table statistics for better query planning
+- Improves query performance
+
+**Recommended schedule:** Weekly for large installations
+
+```bash
+# Connect to Postgres
+psql -h localhost -U listmonk -d listmonk
+
+# Run VACUUM ANALYZE
+VACUUM ANALYZE;
+```
+
+### Automated VACUUM with Cron
+
+Set up a weekly cron job:
+
+```bash
+# Edit crontab
+crontab -e
+
+# Add weekly VACUUM (runs every Sunday at 3 AM)
+0 3 * * 0 psql -h localhost -U listmonk -d listmonk -c "VACUUM ANALYZE;"
+```
+
+## Database Backups
+
+<Note>
+  Regular backups are **essential** for disaster recovery and safe upgrades.
+</Note>
+
+### Creating Backups
+
+#### Full Database Backup
+
+```bash
+# Basic backup
+pg_dump -h localhost -U listmonk listmonk > listmonk-backup.sql
+
+# Backup with timestamp
+pg_dump -h localhost -U listmonk listmonk > listmonk-backup-$(date +%Y%m%d-%H%M%S).sql
+
+# Compressed backup
+pg_dump -h localhost -U listmonk listmonk | gzip > listmonk-backup-$(date +%Y%m%d).sql.gz
+```
+
+#### Docker Database Backup
+
+```bash
+# Backup from Docker container
+docker exec listmonk_db pg_dump -U listmonk listmonk > listmonk-backup.sql
+
+# Compressed Docker backup
+docker exec listmonk_db pg_dump -U listmonk listmonk | gzip > listmonk-backup.sql.gz
+```
+
+### Automated Backup Script
+
+Create a backup script (`/usr/local/bin/backup-listmonk.sh`):
+
+```bash
+#!/bin/bash
+
+# Configuration
+BACKUP_DIR="/var/backups/listmonk"
+DB_HOST="localhost"
+DB_USER="listmonk"
+DB_NAME="listmonk"
+RETENTION_DAYS=30
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+# Create backup
+TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+BACKUP_FILE="$BACKUP_DIR/listmonk-backup-$TIMESTAMP.sql.gz"
+
+echo "Starting backup: $BACKUP_FILE"
+pg_dump -h "$DB_HOST" -U "$DB_USER" "$DB_NAME" | gzip > "$BACKUP_FILE"
+
+if [ $? -eq 0 ]; then
+    echo "Backup completed successfully"
+    
+    # Remove old backups
+    find "$BACKUP_DIR" -name "listmonk-backup-*.sql.gz" -mtime +$RETENTION_DAYS -delete
+    echo "Removed backups older than $RETENTION_DAYS days"
+else
+    echo "Backup failed!"
+    exit 1
+fi
+```
+
+Make it executable and add to cron:
+
+```bash
+chmod +x /usr/local/bin/backup-listmonk.sh
+
+# Daily backup at 2 AM
+0 2 * * * /usr/local/bin/backup-listmonk.sh >> /var/log/listmonk-backup.log 2>&1
+```
+
+### Restoring Backups
+
+<Warning>
+  Restoring will **overwrite the current database**. Make sure you have a backup of the current state if needed.
+</Warning>
+
+```bash
+# Restore from uncompressed backup
+psql -h localhost -U listmonk -d listmonk < listmonk-backup.sql
+
+# Restore from compressed backup
+gunzip -c listmonk-backup.sql.gz | psql -h localhost -U listmonk -d listmonk
+
+# Docker restore
+gunzip -c listmonk-backup.sql.gz | docker exec -i listmonk_db psql -U listmonk -d listmonk
+```
+
+## Performance Optimization
+
+### Slow Query Caching
+
+As your Postgres database grows with millions of subscribers and campaign records, certain admin pages can become slow:
+
+- Dashboard aggregate counts and statistics
+- Subscriber count beside every list
+- Total subscriber count on the Subscribers page
+
+**Solution:** Enable `Settings → Performance → Cache slow database queries`
+
+<Steps>
+  <Step title="Enable caching">
+    Navigate to **Settings → Performance** and enable **Cache slow database queries**.
+  </Step>
+  
+  <Step title="Configure cache refresh">
+    Set the cache refresh schedule using a crontab expression.
+    
+    **Default:** `0 3 * * *` (3 AM daily)
+    
+    Use [crontab.guru](https://crontab.guru) to generate custom expressions.
+  </Step>
+  
+  <Step title="Monitor performance">
+    After enabling, admin pages should load instantly. Counts are updated periodically instead of real-time.
+  </Step>
+</Steps>
+
+### Batch Size Configuration
+
+The batch size parameter affects performance when working with large lists:
+
+- **What it does:** Number of subscribers fetched from the database in a single cycle (~5 seconds) during campaigns
+- **Impact:** Larger batch size = more memory usage, fewer database round trips
+- **When to adjust:** For lists with millions of subscribers to maximize throughput
+
+**Configure:** `Settings → Performance → Batch size`
+
+### Database Connection Pool
+
+Optimize database connections in `config.toml`:
+
+```toml
+[db]
+host = "localhost"
+port = 5432
+user = "listmonk"
+password = "listmonk"
+database = "listmonk"
+
+ssl_mode = "disable"
+max_open = 25        # Maximum open connections
+max_idle = 25        # Maximum idle connections
+max_lifetime = "300s" # Connection lifetime
+```
+
+**Recommendations:**
+- Increase `max_open` for high-traffic installations
+- Balance between connection overhead and availability
+- Monitor Postgres connection usage
+
+## Monitoring
+
+### Application Logs
+
+#### Docker Logs
+
+```bash
+# Follow application logs
+sudo docker logs -f listmonk_app
+
+# View last 100 lines with timestamps
+sudo docker logs listmonk_app -t --tail 100
+
+# Database logs
+sudo docker logs listmonk_db -t
+
+# Container information
+sudo docker inspect listmonk_app
+```
+
+#### Binary Logs
+
+listmonk logs to `stdout` by default. To persist logs:
+
+```bash
+# Redirect to log file
+./listmonk > listmonk.log 2>&1
+
+# Run as background process with logs
+nohup ./listmonk > listmonk.log 2>&1 &
+```
+
+#### Systemd Service Logs
+
+For systemd service installations, modify the service file to persist logs:
+
+```ini
+[Service]
+ExecStart=/bin/bash -ce "exec /usr/bin/listmonk --config /etc/listmonk/config.toml >>/etc/listmonk/listmonk.log 2>&1"
+```
+
+View logs:
+
+```bash
+# Systemd journal
+sudo journalctl -u listmonk -f
+
+# Application log file
+tail -f /etc/listmonk/listmonk.log
+```
+
+### Admin Dashboard Logs
+
+**Settings → Logs** in the admin UI shows the last 1000 lines of standard output.
+
+<Note>
+  Dashboard logs are cleared when listmonk restarts. Use file-based logging for persistence.
+</Note>
+
+### Database Monitoring
+
+#### Active Connections
+
+```sql
+-- View active connections
+SELECT 
+    count(*) as total_connections,
+    state,
+    application_name
+FROM pg_stat_activity
+WHERE datname = 'listmonk'
+GROUP BY state, application_name;
+```
+
+#### Database Size
+
+```sql
+-- Database size
+SELECT pg_size_pretty(pg_database_size('listmonk'));
+
+-- Table sizes
+SELECT 
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+```
+
+#### Slow Queries
+
+```sql
+-- Enable slow query logging
+ALTER DATABASE listmonk SET log_min_duration_statement = 1000; -- Log queries > 1 second
+
+-- View slow queries
+SELECT 
+    query,
+    calls,
+    total_time,
+    mean_time,
+    max_time
+FROM pg_stat_statements
+ORDER BY mean_time DESC
+LIMIT 10;
+```
+
+## Disk Space Management
+
+### Monitor Disk Usage
+
+```bash
+# Check database directory size
+du -sh /var/lib/postgresql/data
+
+# Docker volume size
+docker system df -v
+
+# List large tables
+psql -U listmonk -d listmonk -c "
+    SELECT 
+        tablename,
+        pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
+    FROM pg_tables
+    WHERE schemaname = 'public'
+    ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+"
+```
+
+### Clean Up Old Data
+
+```sql
+-- Delete old campaign views (keep last 6 months)
+DELETE FROM campaign_views 
+WHERE created_at < NOW() - INTERVAL '6 months';
+
+-- Delete old link clicks (keep last 6 months)
+DELETE FROM link_clicks 
+WHERE created_at < NOW() - INTERVAL '6 months';
+
+-- Run VACUUM after cleanup
+VACUUM ANALYZE;
+```
+
+## Health Checks
+
+### Application Health Endpoint
+
+Check if listmonk is running:
+
+```bash
+# Health check
+curl http://localhost:9000/api/health
+
+# Expected response:
+# {"status":"ok"}
+```
+
+### Docker Health Check
+
+Add to `docker-compose.yml`:
+
+```yaml
+app:
+  image: listmonk/listmonk:latest
+  healthcheck:
+    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/api/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 40s
+```
+
+## Upgrade Maintenance
+
+Before upgrading:
+
+<Steps>
+  <Step title="Create backup">
+    ```bash
+    pg_dump -h localhost -U listmonk listmonk > pre-upgrade-backup.sql
+    ```
+  </Step>
+  
+  <Step title="Run VACUUM">
+    ```sql
+    VACUUM ANALYZE;
+    ```
+  </Step>
+  
+  <Step title="Check disk space">
+    Ensure sufficient space for database migrations.
+  </Step>
+  
+  <Step title="Review changelog">
+    Check [release notes](https://github.com/knadh/listmonk/releases) for breaking changes.
+  </Step>
+</Steps>
+
+## Time Zone Configuration
+
+To change listmonk's time zone, edit `docker-compose.yml`:
+
+```yaml
+environment:
+  - TZ=America/New_York  # Or any timezone from tz database
+```
+
+View all time zones: [TZ database](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+
+Restart after changes:
+
+```bash
+sudo docker compose stop
+sudo docker compose up -d
+```

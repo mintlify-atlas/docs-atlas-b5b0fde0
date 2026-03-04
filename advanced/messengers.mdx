@@ -1,0 +1,365 @@
+---
+title: Messengers
+description: Configure SMTP email delivery and custom messaging backends for SMS, push notifications, and other channels
+---
+
+Listmonk supports multiple messaging backends beyond standard email. While SMTP is the default messenger for email campaigns, you can configure custom messengers to send campaigns via SMS, FCM push notifications, or any other HTTP-based messaging service.
+
+## Default Email Messenger (SMTP)
+
+SMTP is the built-in messenger for sending email campaigns. Configure SMTP settings in **Settings → SMTP**.
+
+### SMTP Configuration
+
+From the database schema:
+
+```json
+[
+  {
+    "enabled": true,
+    "host": "smtp.yoursite.com",
+    "port": 25,
+    "auth_protocol": "cram",
+    "username": "username",
+    "password": "password",
+    "hello_hostname": "",
+    "max_conns": 10,
+    "idle_timeout": "15s",
+    "wait_timeout": "5s",
+    "max_msg_retries": 2,
+    "tls_type": "STARTTLS",
+    "tls_skip_verify": false,
+    "email_headers": []
+  }
+]
+```
+
+### SMTP Parameters
+
+<ParamField path="host" type="string" required>
+  SMTP server hostname or IP address.
+</ParamField>
+
+<ParamField path="port" type="integer" required>
+  SMTP server port (25, 587, or 465 typically).
+</ParamField>
+
+<ParamField path="auth_protocol" type="string">
+  Authentication method: `cram`, `plain`, `login`, or `none`.
+</ParamField>
+
+<ParamField path="username" type="string">
+  SMTP authentication username.
+</ParamField>
+
+<ParamField path="password" type="string">
+  SMTP authentication password.
+</ParamField>
+
+<ParamField path="max_conns" type="integer" default="10">
+  Maximum number of concurrent connections to the SMTP server.
+</ParamField>
+
+<ParamField path="idle_timeout" type="string" default="15s">
+  How long to keep idle connections open.
+</ParamField>
+
+<ParamField path="wait_timeout" type="string" default="5s">
+  Timeout for waiting on new connections.
+</ParamField>
+
+<ParamField path="max_msg_retries" type="integer" default="2">
+  Number of retries for failed messages.
+</ParamField>
+
+<ParamField path="tls_type" type="string">
+  TLS connection type: `STARTTLS`, `TLS`, or `none`.
+</ParamField>
+
+<ParamField path="tls_skip_verify" type="boolean" default="false">
+  Skip TLS certificate verification (not recommended for production).
+</ParamField>
+
+<ParamField path="email_headers" type="array">
+  Custom email headers to add to all outgoing messages.
+</ParamField>
+
+### Multiple SMTP Servers
+
+Listmonk supports configuring multiple SMTP servers for load balancing or fallback:
+
+```json
+[
+  {
+    "enabled": true,
+    "host": "smtp.primaryserver.com",
+    "port": 587,
+    "auth_protocol": "plain",
+    "max_conns": 10
+  },
+  {
+    "enabled": true,
+    "host": "smtp.backupserver.com",
+    "port": 587,
+    "auth_protocol": "plain",
+    "max_conns": 5
+  }
+]
+```
+
+### Gmail SMTP Example
+
+```json
+{
+  "enabled": true,
+  "host": "smtp.gmail.com",
+  "port": 465,
+  "auth_protocol": "login",
+  "username": "username@gmail.com",
+  "password": "app-specific-password",
+  "max_conns": 10,
+  "idle_timeout": "15s",
+  "wait_timeout": "5s",
+  "max_msg_retries": 2,
+  "tls_type": "TLS",
+  "tls_skip_verify": false
+}
+```
+
+<Note>
+  For Gmail, use an [app-specific password](https://support.google.com/accounts/answer/185833) instead of your regular password.
+</Note>
+
+## Custom Messengers
+
+Custom messengers enable sending campaigns through non-email channels like SMS, FCM, or any HTTP API.
+
+### How Messengers Work
+
+A messenger is an HTTP web service that:
+1. Receives campaign message data as JSON POST requests from listmonk
+2. Processes the message for its specific channel (SMS, push, etc.)
+3. Returns a `200 OK` response on success
+
+Messengers are configured in **Settings → Messengers** and can be selected when creating campaigns.
+
+### Configuring a Messenger
+
+In **Settings → Messengers**, add a new messenger:
+
+<ParamField path="name" type="string" required>
+  Display name for the messenger (shown in campaign creation).
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  HTTP endpoint URL where listmonk will POST messages.
+</ParamField>
+
+<ParamField path="username" type="string">
+  Optional BasicAuth username for authentication.
+</ParamField>
+
+<ParamField path="password" type="string">
+  Optional BasicAuth password for authentication.
+</ParamField>
+
+<ParamField path="max_conns" type="integer" default="10">
+  Maximum concurrent connections to the messenger endpoint.
+</ParamField>
+
+<ParamField path="timeout" type="string" default="5s">
+  HTTP request timeout.
+</ParamField>
+
+### Message Payload
+
+When a campaign starts, listmonk POSTs messages to the messenger endpoint in this format:
+
+```json
+{
+  "subject": "Welcome to listmonk",
+  "body": "The message body",
+  "content_type": "plain",
+  "recipients": [
+    {
+      "uuid": "e44b4135-1e1d-40c5-8a30-0f9a886c2884",
+      "email": "anon@example.com",
+      "name": "Anon Doe",
+      "attribs": {
+        "phone": "123123123",
+        "fcm_id": "2e7e4b512e7e4b512e7e4b51",
+        "city": "Bengaluru"
+      },
+      "status": "enabled"
+    }
+  ],
+  "campaign": {
+    "uuid": "2e7e4b51-f31b-418a-a120-e41800cb689f",
+    "name": "Test campaign",
+    "tags": ["test-campaign"]
+  }
+}
+```
+
+### Accessing Subscriber Attributes
+
+The `attribs` field contains custom subscriber attributes. Store channel-specific identifiers here:
+
+- **Phone numbers** for SMS: `"phone": "+1234567890"`
+- **FCM tokens** for push: `"fcm_id": "token123..."`
+- **Device IDs**: `"device_id": "abc-def-123"`
+
+<Note>
+  Use [subscriber attributes](/features/subscribers-and-lists#subscriber-attributes) to store channel-specific delivery addresses like phone numbers or push notification tokens.
+</Note>
+
+### Content Format for Messengers
+
+When creating campaigns for custom messengers:
+
+1. Use **plain text** content type for best compatibility
+2. SMS and push notifications don't support HTML
+3. Keep messages concise for character-limited channels
+4. Test with small segments first
+
+## Available Messenger Implementations
+
+Community-built messenger integrations:
+
+| Messenger | Channel | Repository |
+|-----------|---------|------------|
+| AWS Pinpoint SMS | SMS | [listmonk-messenger](https://github.com/joeirimpan/listmonk-messenger) |
+| Verimor | SMS | [listmonk-verimor-gateway](https://github.com/antandros/listmonk-verimor-gateway) |
+| MailerSend | Email | [listmonk-mailersend](https://github.com/tkawczynski/listmonk-mailersend) |
+| Novu | Multi-channel | [listmonk-novu-messenger](https://github.com/Codepowercode/listmonk-novu-messenger) |
+| Google FCM | Push notifications | [listmonk-push-messenger](https://github.com/shyamkrishna21/listmonk-push-messenger) |
+
+## Building a Custom Messenger
+
+Create a simple HTTP server that accepts the listmonk message payload and forwards it to your delivery service.
+
+### Example: SMS Messenger
+
+```python
+from flask import Flask, request, jsonify
+import requests
+
+app = Flask(__name__)
+
+@app.route('/sms', methods=['POST'])
+def send_sms():
+    data = request.json
+    
+    for recipient in data['recipients']:
+        phone = recipient['attribs'].get('phone')
+        if not phone:
+            continue
+            
+        # Send via your SMS provider API
+        response = requests.post('https://sms-provider.com/api/send', json={
+            'to': phone,
+            'message': data['body'],
+            'from': 'YourApp'
+        })
+        
+        if response.status_code != 200:
+            return jsonify({'error': 'SMS delivery failed'}), 500
+    
+    return jsonify({'status': 'ok'}), 200
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
+```
+
+Configure in listmonk:
+- **Name**: SMS
+- **Endpoint**: `http://your-server:5000/sms`
+
+### Example: FCM Push Messenger
+
+```javascript
+const express = require('express');
+const admin = require('firebase-admin');
+
+const app = express();
+app.use(express.json());
+
+admin.initializeApp({
+  credential: admin.credential.cert('serviceAccountKey.json')
+});
+
+app.post('/push', async (req, res) => {
+  const { subject, body, recipients } = req.body;
+  
+  const tokens = recipients
+    .map(r => r.attribs.fcm_id)
+    .filter(Boolean);
+  
+  if (tokens.length === 0) {
+    return res.status(400).json({ error: 'No FCM tokens found' });
+  }
+  
+  const message = {
+    notification: {
+      title: subject,
+      body: body
+    },
+    tokens: tokens
+  };
+  
+  try {
+    const response = await admin.messaging().sendMulticast(message);
+    console.log(`Sent ${response.successCount} notifications`);
+    return res.json({ status: 'ok' });
+  } catch (error) {
+    console.error('Error sending push:', error);
+    return res.status(500).json({ error: 'Push delivery failed' });
+  }
+});
+
+app.listen(5001, () => {
+  console.log('FCM messenger running on port 5001');
+});
+```
+
+## Best Practices
+
+<Warning>
+  Always validate subscriber attributes contain the required delivery address (phone, FCM token, etc.) before sending.
+</Warning>
+
+1. **Return 200 OK quickly** - Process deliveries asynchronously if needed
+2. **Implement BasicAuth** for production deployments
+3. **Handle errors gracefully** - Return appropriate HTTP status codes
+4. **Log delivery attempts** for debugging
+5. **Respect rate limits** of your delivery service
+6. **Store channel-specific IDs** in subscriber attributes
+7. **Use plain text** content for non-email messengers
+
+## Selecting Messengers in Campaigns
+
+When creating a campaign:
+
+1. Go to **Campaigns → New campaign**
+2. In the **Messenger** dropdown, select your custom messenger
+3. Choose **Plain text** content type for SMS/push
+4. Ensure subscribers have required attributes (phone, FCM token, etc.)
+
+## Troubleshooting
+
+### Messenger not appearing in campaign dropdown
+
+- Ensure the messenger is enabled in **Settings → Messengers**
+- Restart listmonk after adding new messengers
+
+### Messages not being delivered
+
+- Check messenger endpoint logs for errors
+- Verify subscribers have required attributes (phone numbers, tokens)
+- Test endpoint manually with curl
+- Ensure endpoint returns 200 OK status
+
+### Authentication errors
+
+- Verify BasicAuth credentials in messenger configuration
+- Check that your messenger endpoint validates credentials correctly

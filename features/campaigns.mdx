@@ -1,0 +1,258 @@
+---
+title: Campaigns
+description: Create and manage email campaigns with flexible scheduling, multiple content types, and comprehensive status tracking
+---
+
+A **campaign** is an email (or other message type) that is sent to one or more lists. Campaigns support rich content types, scheduling, and detailed status tracking throughout their lifecycle.
+
+## Campaign Types
+
+Listmonk supports two campaign types defined in the database schema:
+
+<CodeGroup>
+```sql schema.sql
+DROP TYPE IF EXISTS campaign_type CASCADE;
+CREATE TYPE campaign_type AS ENUM ('regular', 'optin');
+```
+</CodeGroup>
+
+### Regular Campaigns
+
+Standard email campaigns sent to subscribers in selected lists. These are the most common campaign type for newsletters, announcements, and marketing messages.
+
+### Opt-in Campaigns
+
+Special campaigns designed to send confirmation emails to subscribers in double opt-in lists. These campaigns help subscribers confirm their subscription.
+
+<CodeGroup>
+```go cmd/campaigns.go
+// If the campaign's 'opt-in', prepare a default message.
+switch o.Type {
+case models.CampaignTypeOptin:
+    op, err := a.makeOptinCampaignMessage(o)
+    if err != nil {
+        return err
+    }
+    o = op
+case "":
+    o.Type = models.CampaignTypeRegular
+}
+```
+</CodeGroup>
+
+## Content Types
+
+Campaigns support multiple content types for maximum flexibility:
+
+<CodeGroup>
+```sql schema.sql
+DROP TYPE IF EXISTS content_type CASCADE;
+CREATE TYPE content_type AS ENUM ('richtext', 'html', 'plain', 'markdown', 'visual');
+```
+</CodeGroup>
+
+| Content Type | Description |
+|--------------|-------------|
+| **richtext** | WYSIWYG editor with formatting toolbar (default) |
+| **html** | Raw HTML for complete control over email design |
+| **plain** | Plain text emails without HTML formatting |
+| **markdown** | Write content in Markdown, converted to HTML |
+| **visual** | Visual email builder for drag-and-drop design |
+
+<Note>
+If no content type is specified, campaigns default to `richtext`.
+</Note>
+
+## Campaign Status Workflow
+
+Campaigns progress through different statuses during their lifecycle:
+
+<CodeGroup>
+```sql schema.sql
+DROP TYPE IF EXISTS campaign_status CASCADE;
+CREATE TYPE campaign_status AS ENUM (
+    'draft',
+    'running',
+    'scheduled',
+    'paused',
+    'cancelled',
+    'finished'
+);
+```
+</CodeGroup>
+
+### Status Descriptions
+
+<Steps>
+  <Step title="Draft">
+    Newly created campaigns start as drafts. They can be edited, tested, and modified before sending.
+  </Step>
+  
+  <Step title="Scheduled">
+    Campaigns with a future `send_at` timestamp are scheduled. They will automatically start at the specified time.
+  </Step>
+  
+  <Step title="Running">
+    The campaign is actively being sent to subscribers. Progress can be monitored in real-time.
+  </Step>
+  
+  <Step title="Paused">
+    A running campaign can be paused and resumed later from where it left off.
+  </Step>
+  
+  <Step title="Finished">
+    The campaign has been sent to all subscribers successfully.
+  </Step>
+  
+  <Step title="Cancelled">
+    The campaign was stopped and will not continue sending.
+  </Step>
+</Steps>
+
+### Editable Statuses
+
+Campaigns can only be edited when they are in specific statuses:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// canEditCampaign returns true if a campaign is in a status where updating
+// its properties is allowed.
+func canEditCampaign(status string) bool {
+    return status == models.CampaignStatusDraft ||
+        status == models.CampaignStatusPaused ||
+        status == models.CampaignStatusScheduled
+}
+```
+</CodeGroup>
+
+<Warning>
+Campaigns that are `finished` or `cancelled` cannot be modified.
+</Warning>
+
+## Scheduling Campaigns
+
+Campaigns can be scheduled to send at a future date and time using the `send_at` field:
+
+<CodeGroup>
+```sql schema.sql
+CREATE TABLE campaigns (
+    ...
+    send_at          TIMESTAMP WITH TIME ZONE,
+    ...
+);
+```
+</CodeGroup>
+
+When creating or updating a campaign, the `send_at` timestamp must be in the future:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// If there's a "send_at" date, it should be in the future.
+if c.SendAt.Valid {
+    if c.SendAt.Time.Before(time.Now()) {
+        return c, errors.New(a.i18n.T("campaigns.fieldInvalidSendAt"))
+    }
+}
+```
+</CodeGroup>
+
+## Campaign Schema
+
+Key fields in the campaigns table:
+
+```sql
+CREATE TABLE campaigns (
+    id               SERIAL PRIMARY KEY,
+    uuid             uuid NOT NULL UNIQUE,
+    name             TEXT NOT NULL,
+    subject          TEXT NOT NULL,
+    from_email       TEXT NOT NULL,
+    body             TEXT NOT NULL,
+    content_type     content_type NOT NULL DEFAULT 'richtext',
+    send_at          TIMESTAMP WITH TIME ZONE,
+    status           campaign_status NOT NULL DEFAULT 'draft',
+    type             campaign_type DEFAULT 'regular',
+    messenger        TEXT NOT NULL,
+    template_id      INTEGER REFERENCES templates(id),
+    
+    -- Progress tracking
+    to_send            INT NOT NULL DEFAULT 0,
+    sent               INT NOT NULL DEFAULT 0,
+    max_subscriber_id  INT NOT NULL DEFAULT 0,
+    last_subscriber_id INT NOT NULL DEFAULT 0,
+    
+    -- Archive settings
+    archive             BOOLEAN NOT NULL DEFAULT false,
+    archive_slug        TEXT NULL UNIQUE,
+    archive_meta        JSONB NOT NULL DEFAULT '{}',
+    
+    started_at       TIMESTAMP WITH TIME ZONE,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## Messengers
+
+Campaigns use messengers to deliver messages. The default messenger is `email`, but listmonk supports custom messaging backends:
+
+<CodeGroup>
+```go cmd/campaigns.go
+if o.Messenger == "" {
+    o.Messenger = "email"
+}
+
+if !a.manager.HasMessenger(c.Messenger) {
+    // If it's a specific SMTP, but it's no longer available, fall back to general email messenger.
+    if strings.HasPrefix(c.Messenger, "email-") {
+        c.Messenger = "email"
+    } else {
+        return c, errors.New(a.i18n.Ts("campaigns.fieldInvalidMessenger", "name", c.Messenger))
+    }
+}
+```
+</CodeGroup>
+
+<Info>
+Messengers enable sending campaigns via SMS, push notifications, and other channels beyond email.
+</Info>
+
+## Testing Campaigns
+
+Before sending a campaign to your entire list, you can send test messages to specific email addresses:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// TestCampaign handles the sending of a campaign message to
+// arbitrary subscribers for testing.
+func (a *App) TestCampaign(c echo.Context) error {
+    // Get the campaign ID.
+    id := getID(c)
+    
+    var req campReq
+    if err := c.Bind(&req); err != nil {
+        return err
+    }
+    
+    if len(req.SubscriberEmails) == 0 {
+        return echo.NewHTTPError(http.StatusBadRequest, 
+            a.i18n.T("campaigns.noSubsToTest"))
+    }
+    
+    // Send the test messages...
+}
+```
+</CodeGroup>
+
+## Campaign Analytics
+
+Campaigns track detailed metrics including:
+
+- **Sent count**: Number of emails successfully sent
+- **Views**: Tracking pixel-based email opens
+- **Clicks**: Link click tracking
+- **Bounces**: Failed delivery tracking
+
+<Card title="Learn More About Analytics" icon="chart-line" href="/features/analytics">
+  Explore campaign tracking, metrics, and reporting features
+</Card>

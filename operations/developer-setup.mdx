@@ -1,0 +1,565 @@
+---
+title: Developer Setup
+description: Local development environment setup and contribution guidelines for Listmonk
+---
+
+## Overview
+
+Listmonk has two distinct components:
+
+- **Go backend:** API server and core logic
+- **VueJS frontend:** Admin UI dashboard
+
+In the dev environment, both are run independently for faster iteration.
+
+## Prerequisites
+
+<Steps>
+  <Step title="Install Go">
+    Download and install Go from [golang.org](https://golang.org/dl/)
+    
+    ```bash
+    # Verify installation
+    go version
+    ```
+  </Step>
+  
+  <Step title="Install Node.js and Yarn (for frontend)">
+    Required only if working on the frontend.
+    
+    ```bash
+    # Install Node.js (v16+ recommended)
+    # https://nodejs.org/
+    
+    # Install Yarn
+    npm install -g yarn
+    
+    # Verify installation
+    node --version
+    yarn --version
+    ```
+  </Step>
+  
+  <Step title="Setup Postgres database">
+    **Option 1: Local Postgres installation**
+    
+    Install Postgres and create a database.
+    
+    **Option 2: Docker demo database**
+    
+    ```bash
+    docker compose up demo-db
+    ```
+  </Step>
+</Steps>
+
+## First Time Setup
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/knadh/listmonk.git
+    cd listmonk
+    ```
+    
+    <Note>
+      The project uses go.mod, so it's best to clone outside the Go `src` path.
+    </Note>
+  </Step>
+  
+  <Step title="Configure listmonk">
+    ```bash
+    # Copy sample config
+    cp config.toml.sample config.toml
+    
+    # Edit config.toml and add your database settings
+    nano config.toml
+    ```
+    
+    Example configuration:
+    
+    ```toml
+    [app]
+    address = "localhost:9000"
+    
+    [db]
+    host = "localhost"
+    port = 5432
+    user = "listmonk"
+    password = "listmonk"
+    database = "listmonk"
+    ssl_mode = "disable"
+    max_open = 25
+    max_idle = 25
+    max_lifetime = "300s"
+    ```
+  </Step>
+  
+  <Step title="Build and install">
+    ```bash
+    # Build the binary
+    make dist
+    
+    # Run database setup
+    ./listmonk --install
+    ```
+    
+    The install process will:
+    - Create database schema
+    - Insert sample data (lists, subscribers, campaigns)
+    - Create default templates
+  </Step>
+</Steps>
+
+## Running the Dev Environment
+
+You can run your development environment locally or inside containers.
+
+### Local Development
+
+<Steps>
+  <Step title="Start the backend (terminal 1)">
+    ```bash
+    make run
+    ```
+    
+    This starts the listmonk server on `:9000` with hot-reload.
+  </Step>
+  
+  <Step title="Start the frontend (terminal 2)">
+    ```bash
+    make run-frontend
+    ```
+    
+    This starts the Vue dev server on `:8080`.
+    
+    - Frontend hot-reload enabled
+    - All `/api/*` calls are proxied to `:9000`
+  </Step>
+  
+  <Step title="Access the application">
+    Open your browser to [http://localhost:8080](http://localhost:8080)
+  </Step>
+</Steps>
+
+<Note>
+  Use [mailhog](https://github.com/mailhog/MailHog) as a standalone mock SMTP server for testing emails during development.
+</Note>
+
+### Docker Development
+
+#### Using Makefile
+
+```bash
+# Initialize Docker environment
+make init-dev-docker
+
+# Start the full suite (frontend, backend, database)
+make dev-docker
+
+# Clean up when done
+make rm-dev-docker
+```
+
+#### Using DevContainer
+
+For VS Code users:
+
+<Steps>
+  <Step title="Open in VS Code">
+    Open the repository in VS Code.
+  </Step>
+  
+  <Step title="Reopen in container">
+    1. Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+    2. Select "Dev Containers: Rebuild and Reopen in Container"
+  </Step>
+  
+  <Step title="Automatic setup">
+    The devcontainer will automatically:
+    - Setup database
+    - Start backend on `:9000`
+    - Start frontend on `:8080`
+  </Step>
+</Steps>
+
+## Makefile Reference
+
+The `Makefile` provides convenient commands for common tasks:
+
+### Building
+
+```bash
+# Build backend binary
+make build
+
+# Build frontend only
+make build-frontend
+
+# Build email builder
+make build-email-builder
+
+# Build production release (backend + frontend + assets)
+make dist
+```
+
+From `Makefile:103-104`:
+```makefile
+.PHONY: dist
+dist: $(STUFFBIN) build build-frontend pack-bin
+```
+
+### Running
+
+```bash
+# Run backend in dev mode
+make run
+
+# Run frontend dev server
+make run-frontend
+
+# Run backend with Docker config
+make run-backend-docker
+```
+
+Backend dev mode (from `Makefile:65-67`):
+```makefile
+.PHONY: run
+run:
+	CGO_ENABLED=0 go run -ldflags="-s -w -X 'main.buildString=${BUILDSTR}' -X 'main.versionString=${VERSION}' -X 'main.frontendDir=frontend/dist'" cmd/*.go
+```
+
+### Testing
+
+```bash
+# Run Go tests
+make test
+```
+
+### Docker Development
+
+```bash
+# Build dev Docker images
+make build-dev-docker
+
+# Start full dev suite
+make dev-docker
+
+# Initialize dev environment
+make init-dev-docker
+
+# Remove dev containers and volumes
+make rm-dev-docker
+```
+
+### Release Building
+
+```bash
+# Dry run release (local builds only)
+make release-dry
+
+# Build production releases
+make release
+```
+
+## Project Structure
+
+```
+listmonk/
+├── cmd/
+│   ├── main.go              # Application entry point
+│   ├── install.go           # Installation logic
+│   ├── upgrade.go           # Migration handling
+│   └── ...
+├── internal/
+│   ├── core/                # Core business logic
+│   ├── manager/             # Campaign manager
+│   ├── messenger/           # Email/SMS messengers
+│   ├── migrations/          # Database migrations
+│   └── ...
+├── frontend/
+│   ├── src/
+│   │   ├── views/           # Vue pages
+│   │   ├── components/      # Vue components
+│   │   └── ...
+│   ├── email-builder/       # Visual email editor
+│   └── ...
+├── queries/                 # SQL queries
+├── schema.sql               # Database schema
+├── config.toml.sample       # Sample configuration
+├── Makefile                 # Build commands
+└── ...
+```
+
+## Frontend Development
+
+For detailed frontend architecture, see [frontend/README.md](https://github.com/knadh/listmonk/blob/master/frontend/README.md).
+
+### Key Technologies
+
+- **Framework:** Vue 3 + Composition API
+- **UI Library:** Buefy (Bulma + Vue)
+- **Build Tool:** Vite
+- **State Management:** Vue Composition API
+- **HTTP Client:** Axios
+
+### Frontend Structure
+
+```
+frontend/src/
+├── views/
+│   ├── Dashboard.vue
+│   ├── Lists.vue
+│   ├── Subscribers.vue
+│   ├── Campaigns.vue
+│   └── ...
+├── components/
+│   ├── ListSelector.vue
+│   ├── Editor.vue
+│   └── ...
+├── api/
+│   └── index.js              # API client
+└── router/
+    └── index.js              # Vue Router config
+```
+
+### Making Frontend Changes
+
+<Steps>
+  <Step title="Run frontend dev server">
+    ```bash
+    make run-frontend
+    ```
+  </Step>
+  
+  <Step title="Edit Vue files">
+    Changes auto-reload in the browser.
+  </Step>
+  
+  <Step title="Test your changes">
+    - Check console for errors
+    - Test different screen sizes
+    - Verify API calls in Network tab
+  </Step>
+  
+  <Step title="Build for production">
+    ```bash
+    make build-frontend
+    ```
+  </Step>
+</Steps>
+
+## Backend Development
+
+### Adding New API Endpoints
+
+1. Add SQL query in `queries/` directory
+2. Update `internal/core/` with business logic
+3. Add handler in `cmd/handlers_*.go`
+4. Register route in `cmd/routes.go`
+
+Example from `cmd/handlers_lists.go`:
+```go
+func handleGetLists(c echo.Context) error {
+    var (
+        app = c.Get("app").(*App)
+        out []models.List
+    )
+    
+    if err := app.queries.GetLists.Select(&out); err != nil {
+        return err
+    }
+    
+    return c.JSON(http.StatusOK, okResp{out})
+}
+```
+
+### Database Migrations
+
+Migrations are in `internal/migrations/`:
+
+```go
+// internal/migrations/v6.1.0.go
+func V6_1_0(db *sqlx.DB, fs stuffbin.FileSystem, ko *koanf.Koanf, lo *log.Logger) error {
+    // Migration code
+    _, err := db.Exec(`
+        ALTER TABLE campaigns ADD COLUMN new_field TEXT;
+    `)
+    return err
+}
+```
+
+Register in `cmd/upgrade.go`:
+```go
+var migList = []migFunc{
+    // ...
+    {"v6.1.0", migrations.V6_1_0},
+}
+```
+
+## Testing
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run specific package
+go test ./internal/core
+
+# Run with coverage
+go test -cover ./...
+
+# Verbose output
+go test -v ./...
+```
+
+### Writing Tests
+
+Example test structure:
+
+```go
+package core
+
+import (
+    "testing"
+)
+
+func TestGetLists(t *testing.T) {
+    // Setup
+    app := newTestApp()
+    
+    // Execute
+    lists, err := app.core.GetLists()
+    
+    // Assert
+    if err != nil {
+        t.Fatalf("expected no error, got %v", err)
+    }
+    if len(lists) == 0 {
+        t.Fatal("expected lists, got none")
+    }
+}
+```
+
+## Contributing Guidelines
+
+From `CONTRIBUTING.md`, please follow these guidelines:
+
+### Before Contributing
+
+<Warning>
+  **Send a proposal first** before writing code. Open an issue describing what you aim to accomplish and how.
+</Warning>
+
+This saves everyone time by:
+- Confirming the feature fits the project scope
+- Discussing technical approach
+- Avoiding duplicate work
+
+### Pull Request Best Practices
+
+<Steps>
+  <Step title="Send small PRs">
+    - One feature or fix per PR
+    - Well-defined scope
+    - Easier to review and test
+    - Don't bundle multiple features
+  </Step>
+  
+  <Step title="Follow code style">
+    - Match existing conventions
+    - Run `go fmt` on Go code
+    - Use ESLint for frontend code
+  </Step>
+  
+  <Step title="Write clear descriptions">
+    - Explain what and why
+    - Reference related issues
+    - Include screenshots for UI changes
+  </Step>
+  
+  <Step title="Test thoroughly">
+    - Test your changes locally
+    - Include test cases if applicable
+    - Verify no regressions
+  </Step>
+</Steps>
+
+### What NOT to Do
+
+<Warning>
+  From `CONTRIBUTING.md:36-47`:
+</Warning>
+
+- **Don't demand attention:** Maintainers owe you nothing
+- **Don't use aggressive language:** Be respectful
+- **Don't nitpick:** Focus on meaningful improvements
+- **Don't bundle features:** One PR per feature
+
+### Bug Reports
+
+<Steps>
+  <Step title="Search existing issues">
+    Avoid duplicates by searching first.
+  </Step>
+  
+  <Step title="Provide clear information">
+    - Steps to reproduce
+    - Expected vs actual behavior
+    - Environment details (OS, version, etc.)
+    - Relevant logs or screenshots
+  </Step>
+  
+  <Step title="Follow the issue template">
+    Use the [bug report template](https://github.com/knadh/listmonk/issues/new?assignees=&labels=bug&template=bug_report.md).
+  </Step>
+</Steps>
+
+## Production Build
+
+To build a production-ready binary:
+
+```bash
+# Build with all assets embedded
+make dist
+```
+
+This:
+1. Builds the Go binary (`make build`)
+2. Builds the Vue frontend (`make build-frontend`)
+3. Embeds all static assets using `stuffbin` (`make pack-bin`)
+
+From `Makefile:101-110`:
+```makefile
+# Bundle all static assets including the JS frontend
+.PHONY: dist
+dist: $(STUFFBIN) build build-frontend pack-bin
+
+.PHONY: pack-bin
+pack-bin: build-frontend $(BIN) $(STUFFBIN)
+	$(STUFFBIN) -a stuff -in ${BIN} -out ${BIN} ${STATIC}
+```
+
+Output: Single `listmonk` binary with everything embedded.
+
+## Resources
+
+- **Repository:** [github.com/knadh/listmonk](https://github.com/knadh/listmonk)
+- **Documentation:** [listmonk.app/docs](https://listmonk.app/docs)
+- **Contributing:** [CONTRIBUTING.md](https://github.com/knadh/listmonk/blob/master/CONTRIBUTING.md)
+- **Issues:** [GitHub Issues](https://github.com/knadh/listmonk/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/knadh/listmonk/discussions)
+
+## Getting Help
+
+Before asking for help:
+
+1. Search the [documentation](https://listmonk.app/docs)
+2. Check [existing issues](https://github.com/knadh/listmonk/issues)
+3. Review [discussions](https://github.com/knadh/listmonk/discussions)
+
+If you still need help:
+- Open a [discussion](https://github.com/knadh/listmonk/discussions/new) for questions
+- Open an [issue](https://github.com/knadh/listmonk/issues/new) for bugs

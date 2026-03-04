@@ -1,0 +1,343 @@
+---
+title: Installation
+description: Install listmonk using Docker, binary, or other deployment methods
+---
+
+listmonk is a simple binary application that requires a PostgreSQL database instance to run. The binary can be downloaded and run manually, or it can be run as a container with Docker compose.
+
+<Note>
+  listmonk requires PostgreSQL 12 or higher.
+</Note>
+
+## Docker Installation
+
+The recommended method for most users. The latest image is available on DockerHub at `listmonk/listmonk:latest`.
+
+<Steps>
+  <Step title="Download docker-compose.yml">
+    Download the sample docker-compose file to your current directory:
+    
+    ```bash
+    curl -LO https://github.com/knadh/listmonk/raw/master/docker-compose.yml
+    ```
+  </Step>
+  
+  <Step title="Start the services">
+    Run the services in the background:
+    
+    ```bash
+    docker compose up -d
+    ```
+    
+    This will:
+    - Pull the listmonk and PostgreSQL images
+    - Create the database automatically
+    - Start both services
+  </Step>
+  
+  <Step title="Access listmonk">
+    Visit `http://localhost:9000` to create the Super Admin user and login.
+  </Step>
+</Steps>
+
+### Setting Admin Credentials
+
+<Tip>
+  To set the Super Admin username and password during setup, set environment variables:
+  
+  ```bash
+  LISTMONK_ADMIN_USER=myuser LISTMONK_ADMIN_PASSWORD=xxxxx docker compose up -d
+  ```
+  
+  This only works on the first run.
+</Tip>
+
+### Docker Compose Configuration
+
+Here's the default docker-compose.yml configuration:
+
+<CodeGroup>
+```yaml docker-compose.yml
+services:
+  # listmonk app
+  app:
+    image: listmonk/listmonk:latest
+    container_name: listmonk_app
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    networks:
+      - listmonk
+    depends_on:
+      - db
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config '' && ./listmonk --config ''"]
+    
+    environment:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: db
+      LISTMONK_db__port: 5432
+      LISTMONK_db__user: listmonk
+      LISTMONK_db__password: listmonk
+      LISTMONK_db__database: listmonk
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_db__max_open: 25
+      LISTMONK_db__max_idle: 25
+      LISTMONK_db__max_lifetime: 300s
+      TZ: Etc/UTC
+    
+    volumes:
+      - ./uploads:/listmonk/uploads:rw
+
+  # Postgres database
+  db:
+    image: postgres:17-alpine
+    container_name: listmonk_db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      - listmonk
+    environment:
+      POSTGRES_USER: listmonk
+      POSTGRES_PASSWORD: listmonk
+      POSTGRES_DB: listmonk
+    volumes:
+      - type: volume
+        source: listmonk-data
+        target: /var/lib/postgresql/data
+
+networks:
+  listmonk:
+
+volumes:
+  listmonk-data:
+```
+</CodeGroup>
+
+### Mounting Custom config.toml
+
+If you prefer using a config.toml file instead of environment variables:
+
+<Steps>
+  <Step title="Create config.toml">
+    Save the configuration file on your host:
+    
+    ```toml config.toml
+    [app]
+    address = "0.0.0.0:9000"
+    
+    [db]
+    host = "listmonk_db"
+    port = 5432
+    user = "listmonk"
+    password = "listmonk"
+    database = "listmonk"
+    ssl_mode = "disable"
+    max_open = 25
+    max_idle = 25
+    max_lifetime = "300s"
+    ```
+  </Step>
+  
+  <Step title="Mount the file">
+    Add to docker-compose.yml under the app service:
+    
+    ```yaml
+    volumes:
+      - /path/on/your/host/config.toml:/listmonk/config.toml
+    ```
+  </Step>
+  
+  <Step title="Update command">
+    Change the command to use the mounted config:
+    
+    ```yaml
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config /listmonk/config.toml && ./listmonk --upgrade --yes --config /listmonk/config.toml && ./listmonk --config /listmonk/config.toml"]
+    ```
+  </Step>
+</Steps>
+
+## Binary Installation
+
+For users who prefer running listmonk directly on their system without Docker.
+
+<Steps>
+  <Step title="Download the binary">
+    Download the [latest release](https://github.com/knadh/listmonk/releases) and extract the listmonk binary.
+    
+    <Note>
+      Choose `amd64` for Intel and x86 CPUs. ARM builds are also available.
+    </Note>
+  </Step>
+  
+  <Step title="Generate configuration">
+    Generate a sample config.toml file:
+    
+    ```bash
+    ./listmonk --new-config
+    ```
+    
+    Edit the generated config.toml file with your database and application settings.
+  </Step>
+  
+  <Step title="Install database">
+    Set up the PostgreSQL database tables:
+    
+    ```bash
+    ./listmonk --install
+    ```
+    
+    <Tip>
+      Set admin credentials during installation:
+      
+      ```bash
+      LISTMONK_ADMIN_USER=myuser LISTMONK_ADMIN_PASSWORD=xxxxx ./listmonk --install
+      ```
+    </Tip>
+  </Step>
+  
+  <Step title="Run listmonk">
+    Start the application:
+    
+    ```bash
+    ./listmonk
+    ```
+    
+    Visit `http://localhost:9000` to create the Super Admin user and login.
+  </Step>
+</Steps>
+
+### Running as a systemd Service
+
+To run listmonk as a background service on Linux:
+
+<Steps>
+  <Step title="Create service file">
+    Create `/etc/systemd/system/listmonk.service`:
+    
+    ```ini listmonk.service
+    [Unit]
+    Description=listmonk
+    After=network.target postgresql.service
+    
+    [Service]
+    Type=simple
+    User=listmonk
+    Group=listmonk
+    ExecStart=/usr/bin/listmonk --config /etc/listmonk/config.toml --static-dir /etc/listmonk/static
+    Restart=on-failure
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+  
+  <Step title="Enable and start">
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable listmonk
+    sudo systemctl start listmonk
+    ```
+  </Step>
+  
+  <Step title="Check status">
+    ```bash
+    sudo systemctl status listmonk
+    ```
+  </Step>
+</Steps>
+
+### Logging for Binary Installation
+
+<Note>
+  listmonk logs to `stdout`, which is not saved by default. To save logs:
+  
+  ```bash
+  ./listmonk > listmonk.log
+  ```
+  
+  For systemd service, modify the ExecStart line:
+  
+  ```ini
+  ExecStart=/bin/bash -ce "exec /usr/bin/listmonk --config /etc/listmonk/config.toml --static-dir /etc/listmonk/static >>/etc/listmonk/listmonk.log 2>&1"
+  ```
+</Note>
+
+## Nightly Builds
+
+<Warning>
+  Nightly releases are untested and may have bugs. Use at your own risk. Always back up your PostgreSQL database before using a nightly release.
+</Warning>
+
+For access to the latest features without waiting for versioned releases:
+
+- **Docker**: `listmonk/listmonk:nightly`
+- **Binary**: [Download nightly release](https://github.com/knadh/listmonk/releases/nightly)
+
+## Compiling from Source
+
+<Steps>
+  <Step title="Install dependencies">
+    Ensure `go`, `nodejs`, and `yarn` are installed on your system.
+  </Step>
+  
+  <Step title="Clone repository">
+    ```bash
+    git clone git@github.com:knadh/listmonk.git
+    cd listmonk
+    ```
+  </Step>
+  
+  <Step title="Build">
+    ```bash
+    make dist
+    ```
+    
+    This generates the `listmonk` binary.
+  </Step>
+</Steps>
+
+## Kubernetes with Helm
+
+A community-maintained Helm chart is available for Kubernetes deployments:
+
+```bash
+helm upgrade \
+    --create-namespace \
+    --install listmonk listmonk \
+    --namespace listmonk \
+    --repo https://th0th.github.io/helm-charts \
+    --values values.yaml \
+    --version 0.1.0
+```
+
+<Card title="Helm Chart Documentation" icon="kubernetes" href="https://github.com/th0th/helm-charts/tree/main/charts/listmonk">
+  View the complete Helm chart documentation and configuration options
+</Card>
+
+## Third-Party Hosting
+
+Several platforms offer one-click listmonk deployments:
+
+<CardGroup cols={2}>
+  <Card title="Elestio" href="https://dash.elest.io/deploy?soft=Listmonk&id=237">
+    Deploy on Elestio with one click
+  </Card>
+  <Card title="PikaPods" href="https://www.pikapods.com/pods?run=listmonk">
+    Simple managed hosting on PikaPods
+  </Card>
+  <Card title="Railway" href="https://railway.app/new/template/listmonk">
+    Deploy to Railway platform
+  </Card>
+  <Card title="RepoCloud" href="https://repocloud.io/details/?app_id=217">
+    One-click deployment on RepoCloud
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+Once installed, proceed to the [Quick Start](/quickstart) guide to create your first mailing list and campaign.
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Learn how to set up your first list and send your first campaign
+</Card>

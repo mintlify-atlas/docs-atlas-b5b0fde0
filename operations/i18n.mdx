@@ -1,0 +1,405 @@
+---
+title: Internationalization (i18n)
+description: How to add new language translations and customize existing languages in Listmonk
+---
+
+## Overview
+
+Listmonk is available in multiple languages thanks to community-contributed language packs. A language pack is a JSON file containing key-value mappings for UI translations.
+
+View all [bundled languages on GitHub](https://github.com/knadh/listmonk/tree/master/i18n).
+
+## Language Packs
+
+### Bundled Languages
+
+Listmonk includes built-in language packs for:
+
+- English (en)
+- Spanish (es)
+- French (fr)
+- German (de)
+- Portuguese (pt)
+- Italian (it)
+- Dutch (nl)
+- Russian (ru)
+- Chinese (zh)
+- Japanese (ja)
+- And more...
+
+View the complete list in the [i18n directory](https://github.com/knadh/listmonk/tree/master/i18n).
+
+### Additional Language Packs
+
+These community-maintained language packs can be downloaded separately:
+
+| Language         | Description                          | Download                                                                                                                        |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Deutsch (formal) | German language with formal pronouns | [de.json](https://raw.githubusercontent.com/SvenPe/listmonk/4bbb2e5ebb2314b754cb2318f4f6683a0f854d43/i18n/de.json) |
+
+## Customizing Languages
+
+To customize an existing language or load a new language pack:
+
+<Steps>
+  <Step title="Create language directory">
+    ```bash
+    mkdir -p /etc/listmonk/i18n
+    ```
+  </Step>
+  
+  <Step title="Add language JSON files">
+    Place one or more `.json` language files in the directory.
+    
+    Example structure:
+    ```
+    /etc/listmonk/i18n/
+    ├── en.json
+    ├── es.json
+    └── custom-de.json
+    ```
+  </Step>
+  
+  <Step title="Start listmonk with custom languages">
+    ```bash
+    ./listmonk --i18n-dir=/etc/listmonk/i18n
+    ```
+  </Step>
+</Steps>
+
+### Docker Configuration
+
+For Docker deployments, mount the i18n directory:
+
+```yaml
+# docker-compose.yml
+services:
+  app:
+    image: listmonk/listmonk:latest
+    volumes:
+      - ./i18n:/listmonk/i18n
+    command: [
+      "./listmonk",
+      "--i18n-dir=/listmonk/i18n"
+    ]
+```
+
+## Contributing a New Language
+
+There are two methods for creating new language translations:
+
+### Method 1: Basic Editor (Recommended)
+
+<Steps>
+  <Step title="Visit the i18n editor">
+    Navigate to [https://listmonk.app/i18n](https://listmonk.app/i18n)
+  </Step>
+  
+  <Step title="Create or load language">
+    - **New language:** Click `Create a new language`
+    - **Edit existing:** Click `Load language` and select the language
+  </Step>
+  
+  <Step title="Translate the fields">
+    Fill in translations for each text field in the UI.
+    
+    **Tips:**
+    - Keep formatting placeholders like `{name}` unchanged
+    - Maintain similar tone and length to the original
+    - Test pluralization rules if applicable
+  </Step>
+  
+  <Step title="Download the JSON file">
+    Click `Download raw JSON` to save the language file.
+    
+    Example filename: `pt-BR.json`, `fr.json`, `zh-CN.json`
+  </Step>
+  
+  <Step title="Submit a pull request">
+    1. Fork the [listmonk repository](https://github.com/knadh/listmonk)
+    2. Add your language file to the `i18n/` directory
+    3. Submit a pull request with a clear description
+  </Step>
+</Steps>
+
+### Method 2: InLang Service
+
+[![translation badge](https://inlang.com/badge?url=github.com/knadh/listmonk)](https://inlang.com/editor/github.com/knadh/listmonk?ref=badge)
+
+<Steps>
+  <Step title="Open InLang editor">
+    Visit [https://inlang.com/editor/github.com/knadh/listmonk](https://inlang.com/editor/github.com/knadh/listmonk)
+  </Step>
+  
+  <Step title="Authenticate and fork">
+    - Log in to GitHub using OAuth
+    - Fork the project from the InLang UI
+  </Step>
+  
+  <Step title="Translate in the UI">
+    - Translate text in the input fields
+    - Use filters to focus on untranslated strings
+    - See translations for other languages side-by-side
+  </Step>
+  
+  <Step title="Push and create PR">
+    - Push changes from the InLang UI
+    - Click "Open a pull request"
+    - GitHub will open where you can write a PR message
+  </Step>
+</Steps>
+
+## Language File Structure
+
+A language JSON file contains nested key-value pairs:
+
+```json
+{
+  "globals": {
+    "terms": {
+      "name": "Name",
+      "email": "E-mail",
+      "status": "Status"
+    },
+    "buttons": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "delete": "Delete"
+    }
+  },
+  "menu": {
+    "dashboard": "Dashboard",
+    "lists": "Lists",
+    "subscribers": "Subscribers",
+    "campaigns": "Campaigns",
+    "templates": "Templates"
+  },
+  "subscribers": {
+    "newSubscriber": "New subscriber",
+    "status": {
+      "enabled": "Enabled",
+      "blocklisted": "Blocklisted"
+    }
+  }
+}
+```
+
+### Translation Guidelines
+
+<Note>
+  Follow these best practices to ensure consistent, high-quality translations.
+</Note>
+
+#### 1. Preserve Placeholders
+
+Keep variable placeholders unchanged:
+
+```json
+// ✅ Correct
+"welcome": "Welcome, {name}!"
+
+// ❌ Incorrect - translated placeholder
+"welcome": "Bienvenue, {nom}!"
+```
+
+#### 2. Maintain Formatting
+
+Preserve HTML tags and markdown:
+
+```json
+// ✅ Correct
+"help": "Visit the <a href=\"{url}\">documentation</a>"
+
+// ❌ Incorrect - broken HTML
+"help": "Visitez la <a href=\"{url}\"documentation</a>"
+```
+
+#### 3. Context Matters
+
+Some words have different translations based on context:
+
+```json
+{
+  "buttons": {
+    "close": "Close"  // As in "Close window"
+  },
+  "status": {
+    "close": "Close"  // As in "Close to completion"
+  }
+}
+```
+
+#### 4. String Length
+
+Keep translations similar in length to avoid UI layout issues:
+
+```json
+// ✅ Good - similar length
+"save": "Save"  // 4 chars
+"guardar": "Guardar"  // 7 chars
+
+// ⚠️ May cause layout issues
+"delete": "Delete"  // 6 chars
+"eliminar permanentemente": "Eliminar permanentemente"  // 25 chars
+```
+
+#### 5. Consistency
+
+Use consistent terminology throughout:
+
+```json
+// ✅ Consistent
+"subscribers": "Subscribers"
+"newSubscriber": "New subscriber"
+"deleteSubscriber": "Delete subscriber"
+
+// ❌ Inconsistent
+"subscribers": "Subscribers"
+"newContact": "New contact"  // Should be "subscriber"
+```
+
+## Testing Translations
+
+### Local Testing
+
+<Steps>
+  <Step title="Copy language file">
+    ```bash
+    mkdir -p ./i18n
+    cp your-language.json ./i18n/
+    ```
+  </Step>
+  
+  <Step title="Start listmonk">
+    ```bash
+    ./listmonk --i18n-dir=./i18n
+    ```
+  </Step>
+  
+  <Step title="Change language in UI">
+    1. Log in to the admin dashboard
+    2. Click on the language selector (usually top-right)
+    3. Select your language
+  </Step>
+  
+  <Step title="Test all sections">
+    Navigate through different sections to verify translations:
+    - Dashboard
+    - Lists
+    - Subscribers
+    - Campaigns
+    - Templates
+    - Settings
+  </Step>
+</Steps>
+
+### Check for Issues
+
+- [ ] UI elements not cut off
+- [ ] Buttons fit properly
+- [ ] No untranslated strings
+- [ ] Placeholders render correctly
+- [ ] Form validation messages appear
+- [ ] Error messages display properly
+
+## Language File Reference
+
+### Key Sections
+
+| Section       | Description                          | Example Keys                               |
+| ------------- | ------------------------------------ | ------------------------------------------ |
+| `globals`     | Common terms and buttons             | `name`, `email`, `save`, `cancel`          |
+| `menu`        | Navigation menu items                | `dashboard`, `lists`, `campaigns`          |
+| `subscribers` | Subscriber management                | `newSubscriber`, `email`, `status`         |
+| `lists`       | List management                      | `newList`, `type`, `optin`                 |
+| `campaigns`   | Campaign creation and management     | `newCampaign`, `subject`, `send`           |
+| `templates`   | Email template editor                | `newTemplate`, `body`, `preview`           |
+| `settings`    | Application settings                 | `general`, `smtp`, `appearance`            |
+| `users`       | User management (v4.0.0+)            | `newUser`, `role`, `permissions`           |
+
+### Example: Complete Language File
+
+View a complete example:
+
+```bash
+# English (reference)
+https://github.com/knadh/listmonk/blob/master/i18n/en.json
+
+# Spanish
+https://github.com/knadh/listmonk/blob/master/i18n/es.json
+
+# French
+https://github.com/knadh/listmonk/blob/master/i18n/fr.json
+```
+
+## Updating Existing Languages
+
+To fix or improve an existing language:
+
+<Steps>
+  <Step title="Load existing language">
+    Use the [i18n editor](https://listmonk.app/i18n) to load the current language file.
+  </Step>
+  
+  <Step title="Make corrections">
+    Update incorrect translations or add missing ones.
+  </Step>
+  
+  <Step title="Download and submit">
+    Download the updated JSON and submit a pull request with a description of changes.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Language not appearing
+
+**Issue:** Custom language doesn't show in the language selector.
+
+**Solutions:**
+- Verify JSON file is valid (use [JSONLint](https://jsonlint.com/))
+- Check file is in the correct directory
+- Ensure filename matches language code (e.g., `fr.json`, `es.json`)
+- Restart listmonk after adding files
+
+### Broken characters / encoding issues
+
+**Issue:** Special characters display incorrectly (é, ñ, ü, 中文, etc.)
+
+**Solution:** Ensure JSON file is saved with UTF-8 encoding:
+
+```bash
+# Check encoding
+file -i your-language.json
+
+# Convert to UTF-8 if needed
+iconv -f ISO-8859-1 -t UTF-8 your-language.json > your-language-utf8.json
+```
+
+### Missing translations
+
+**Issue:** Some strings remain in English.
+
+**Solution:** Compare your language file with the English reference:
+
+```bash
+# Download English reference
+wget https://raw.githubusercontent.com/knadh/listmonk/master/i18n/en.json
+
+# Compare keys (requires jq)
+jq 'keys' en.json > en-keys.txt
+jq 'keys' your-language.json > your-keys.txt
+diff en-keys.txt your-keys.txt
+```
+
+## Community
+
+Join the discussion:
+
+- [GitHub Discussions](https://github.com/knadh/listmonk/discussions)
+- Report issues: [GitHub Issues](https://github.com/knadh/listmonk/issues)
+- Contribute: [Contributing Guidelines](https://github.com/knadh/listmonk/blob/master/CONTRIBUTING.md)
+
+## Recognition
+
+All translators are credited in the [GitHub contributors list](https://github.com/knadh/listmonk/graphs/contributors). Thank you to everyone who has contributed translations!

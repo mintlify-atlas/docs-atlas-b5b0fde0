@@ -1,0 +1,331 @@
+---
+title: Import API
+description: API endpoints for bulk importing subscribers in Listmonk
+---
+
+Bulk import subscribers from CSV or ZIP files. Monitor import progress, retrieve logs, and manage ongoing imports.
+
+## Get Import Status
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/import/subscribers</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve the status of an ongoing import.
+
+### Response
+
+<ResponseField name="data" type="object">
+  <ResponseField name="name" type="string">
+    Name of the imported file.
+  </ResponseField>
+  <ResponseField name="total" type="number">
+    Total number of records in the import.
+  </ResponseField>
+  <ResponseField name="imported" type="number">
+    Number of records imported so far.
+  </ResponseField>
+  <ResponseField name="status" type="string">
+    Import status: `none`, `importing`, `finished`, `failed`.
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/import/subscribers'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "name": "",
+        "total": 0,
+        "imported": 0,
+        "status": "none"
+    }
+}
+```
+</ResponseExample>
+
+## Get Import Logs
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/import/subscribers/logs</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve logs from an ongoing import.
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/import/subscribers/logs'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": "2020/04/08 21:55:20 processing 'import.csv'\n2020/04/08 21:55:21 imported finished\n"
+}
+```
+</ResponseExample>
+
+## Start Import
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/import/subscribers</path>
+  </endpoint>
+</api-endpoint>
+
+Send a CSV (optionally ZIP compressed) file to import subscribers. Use a multipart form POST.
+
+### Parameters
+
+<ParamField body="params" type="string" required>
+  Stringified JSON with import parameters. See below for structure.
+</ParamField>
+
+<ParamField body="file" type="file" required>
+  CSV or ZIP file for upload.
+</ParamField>
+
+### params JSON Structure
+
+<ParamField body="mode" type="string" required>
+  Import mode: `subscribe` or `blocklist`.
+</ParamField>
+
+<ParamField body="delim" type="string" required>
+  Single character indicating delimiter used in the CSV file, e.g., `,`.
+</ParamField>
+
+<ParamField body="lists" type="number[]">
+  Array of list IDs to subscribe to (required for `subscribe` mode).
+</ParamField>
+
+<ParamField body="subscription_status" type="string">
+  Subscription status for imported subscribers: `confirmed`, `unconfirmed`. Defaults based on list opt-in type.
+</ParamField>
+
+<ParamField body="overwrite" type="boolean">
+  Whether to overwrite the subscriber parameters including subscriptions or ignore records that are already present in the database.
+</ParamField>
+
+### CSV File Format
+
+The CSV file should have the following structure:
+
+```csv
+email,name,attributes
+user1@example.com,John Doe,"{""city"":""Bengaluru"",""projects"":3}"
+user2@example.com,Jane Smith,"{""city"":""Mumbai"",""age"":25}"
+```
+
+#### Required Columns
+- `email` - Subscriber's email address (required)
+
+#### Optional Columns
+- `name` - Subscriber's name
+- `attributes` - JSON object with custom attributes
+- `status` - Subscriber status: `enabled`, `blocklisted`
+
+<RequestExample>
+```bash Subscribe Mode
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/import/subscribers' \
+  -F 'params={"mode":"subscribe", "subscription_status":"confirmed", "delim":",", "lists":[1, 2], "overwrite": true}' \
+  -F "file=@/path/to/subs.csv"
+```
+
+```bash Blocklist Mode
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/import/subscribers' \
+  -F 'params={"mode":"blocklist", "delim":",", "overwrite": false}' \
+  -F "file=@/path/to/blocklist.csv"
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "mode": "subscribe",
+        "delim": ",",
+        "lists": [1],
+        "overwrite": true
+    }
+}
+```
+</ResponseExample>
+
+## Stop Import
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/import/subscribers</path>
+  </endpoint>
+</api-endpoint>
+
+Stop and delete an ongoing import.
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/import/subscribers'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "name": "",
+        "total": 0,
+        "imported": 0,
+        "status": "none"
+    }
+}
+```
+</ResponseExample>
+
+## Import Modes
+
+### Subscribe Mode
+
+Imports subscribers and adds them to specified lists.
+
+**Features:**
+- Creates new subscribers or updates existing ones
+- Adds subscribers to specified lists
+- Respects list opt-in settings (single/double opt-in)
+- Can set subscription status to confirmed or unconfirmed
+
+**Use Cases:**
+- Migrating from another email platform
+- Importing event attendees
+- Bulk adding newsletter subscribers
+
+### Blocklist Mode
+
+Imports email addresses and marks them as blocklisted.
+
+**Features:**
+- Creates new subscribers with blocklisted status
+- Updates existing subscribers to blocklisted status
+- Prevents these addresses from receiving emails
+
+**Use Cases:**
+- Importing spam complaint lists
+- Adding known bad addresses
+- Compliance with unsubscribe requests
+
+## Import Workflow
+
+### 1. Prepare CSV File
+
+Create a CSV file with subscriber data:
+
+```csv
+email,name,attributes
+john@example.com,John Doe,"{""city"":""Bengaluru""}"
+jane@example.com,Jane Smith,"{""city"":""Mumbai""}"
+```
+
+### 2. Start Import
+
+Upload the file using the POST endpoint:
+
+```bash
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/import/subscribers' \
+  -F 'params={"mode":"subscribe", "delim":",", "lists":[1], "overwrite": true}' \
+  -F "file=@subscribers.csv"
+```
+
+### 3. Monitor Progress
+
+Poll the status endpoint to check progress:
+
+```bash
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/import/subscribers'
+```
+
+### 4. Check Logs
+
+View import logs for any errors:
+
+```bash
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/import/subscribers/logs'
+```
+
+### 5. Handle Completion
+
+Once status is `finished`, verify imported subscribers:
+
+```bash
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/subscribers?list_id=1'
+```
+
+## Best Practices
+
+### File Preparation
+- Use UTF-8 encoding for CSV files
+- Validate email addresses before import
+- Test with a small file first
+- Use ZIP compression for large files
+
+### Attributes
+- Use valid JSON for the attributes column
+- Escape quotes properly: `"{""key"":""value""}"`
+- Keep attribute names consistent
+- Avoid deeply nested objects
+
+### Performance
+- Import during off-peak hours
+- Split very large files (>100k records) into batches
+- Monitor system resources during import
+- Use `overwrite: false` to skip existing subscribers (faster)
+
+### Error Handling
+- Monitor import logs for errors
+- Keep original CSV files for retry
+- Validate data before import
+- Handle partial imports appropriately
+
+## Overwrite Behavior
+
+### overwrite: true
+- Updates existing subscribers with new data
+- Overwrites name and attributes
+- Updates list subscriptions
+- Slower but ensures data consistency
+
+### overwrite: false
+- Skips existing subscribers entirely
+- Only imports new email addresses
+- Faster for large imports
+- Use when you only want to add new subscribers
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `400 Bad Request` - Invalid file format or parameters
+- `401 Unauthorized` - Missing or invalid authentication
+- `409 Conflict` - Import already in progress
+- `413 Payload Too Large` - File size exceeds limit
+- `500 Internal Server Error` - Server error
+
+## Import Limitations
+
+- Only one import can run at a time
+- Maximum file size depends on server configuration
+- Very large imports may take significant time
+- Import can be stopped but not paused/resumed

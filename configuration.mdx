@@ -1,0 +1,507 @@
+---
+title: Configuration
+description: Configure listmonk using config.toml or environment variables
+---
+
+listmonk can be configured using TOML configuration files or environment variables. Apart from a few low-level configuration variables and the database configuration, most settings can be managed from the Settings dashboard in the admin UI.
+
+## Configuration Methods
+
+<Tabs>
+  <Tab title="config.toml File">
+    ### Generating config.toml
+    
+    To generate a new sample configuration file:
+    
+    ```bash
+    ./listmonk --new-config
+    ```
+    
+    This creates a `config.toml` file in the current directory with default values.
+    
+    ### Using config.toml
+    
+    Pass the configuration file when starting listmonk:
+    
+    ```bash
+    ./listmonk --config config.toml
+    ```
+    
+    You can specify multiple configuration files:
+    
+    ```bash
+    ./listmonk --config config.toml --config custom.toml
+    ```
+    
+    <Note>
+      Settings in files specified later override earlier ones.
+    </Note>
+  </Tab>
+  
+  <Tab title="Environment Variables">
+    ### Environment Variable Format
+    
+    Variables in config.toml can be provided as environment variables prefixed by `LISTMONK_` with periods replaced by `__` (double underscore).
+    
+    | **Config.toml** | **Environment Variable** | **Example Value** |
+    | --------------- | ------------------------ | ----------------- |
+    | `app.address` | `LISTMONK_app__address` | "0.0.0.0:9000" |
+    | `db.host` | `LISTMONK_db__host` | "localhost" |
+    | `db.port` | `LISTMONK_db__port` | 5432 |
+    | `db.user` | `LISTMONK_db__user` | "listmonk" |
+    | `db.password` | `LISTMONK_db__password` | "listmonk" |
+    | `db.database` | `LISTMONK_db__database` | "listmonk" |
+    | `db.ssl_mode` | `LISTMONK_db__ssl_mode` | "disable" |
+    
+    ### Using Only Environment Variables
+    
+    To start listmonk with only environment variables:
+    
+    ```bash
+    export LISTMONK_app__address="0.0.0.0:9000"
+    export LISTMONK_db__host="localhost"
+    export LISTMONK_db__port=5432
+    export LISTMONK_db__user="listmonk"
+    export LISTMONK_db__password="listmonk"
+    export LISTMONK_db__database="listmonk"
+    export LISTMONK_db__ssl_mode="disable"
+    
+    ./listmonk --config=""
+    ```
+    
+    <Tip>
+      This is the recommended approach for Docker deployments.
+    </Tip>
+  </Tab>
+  
+  <Tab title="Docker Secrets">
+    ### Using Docker Secrets
+    
+    All `LISTMONK_*` environment variables support the `_FILE` suffix for loading secrets from files:
+    
+    ```yaml
+    environment:
+      LISTMONK_db__password_FILE: /run/secrets/db_password
+    
+    secrets:
+      db_password:
+        external: true
+    ```
+    
+    This pattern works with Docker Secrets and Podman.
+  </Tab>
+</Tabs>
+
+## Configuration Reference
+
+### Application Settings
+
+<CodeGroup>
+```toml config.toml
+[app]
+# Interface and port where the app will run its webserver.
+# The default value of localhost will only listen to connections from the current machine.
+# To listen on all interfaces use '0.0.0.0'.
+# To listen on the default web address port, use port 80 (requires elevated permissions).
+address = "localhost:9000"
+```
+
+```bash Environment Variable
+LISTMONK_app__address="0.0.0.0:9000"
+```
+</CodeGroup>
+
+<ParamField path="address" type="string" default="localhost:9000">
+  The interface and port where listmonk's web server listens for connections.
+  
+  - Use `localhost:9000` to only accept local connections
+  - Use `0.0.0.0:9000` to accept connections from any interface
+  - Use `0.0.0.0:80` for standard HTTP port (requires root privileges)
+</ParamField>
+
+### Database Settings
+
+<CodeGroup>
+```toml config.toml
+[db]
+host = "localhost"
+port = 5432
+user = "listmonk"
+password = "listmonk"
+
+# Ensure that this database has been created in Postgres.
+database = "listmonk"
+
+ssl_mode = "disable"
+max_open = 25
+max_idle = 25
+max_lifetime = "300s"
+
+# Optional space separated Postgres DSN params.
+# eg: "application_name=listmonk gssencmode=disable"
+params = ""
+```
+
+```bash Environment Variables
+LISTMONK_db__host="localhost"
+LISTMONK_db__port=5432
+LISTMONK_db__user="listmonk"
+LISTMONK_db__password="listmonk"
+LISTMONK_db__database="listmonk"
+LISTMONK_db__ssl_mode="disable"
+LISTMONK_db__max_open=25
+LISTMONK_db__max_idle=25
+LISTMONK_db__max_lifetime="300s"
+LISTMONK_db__params=""
+```
+</CodeGroup>
+
+<ParamField path="host" type="string" default="localhost">
+  PostgreSQL server hostname or IP address.
+</ParamField>
+
+<ParamField path="port" type="integer" default="5432">
+  PostgreSQL server port.
+</ParamField>
+
+<ParamField path="user" type="string" default="listmonk">
+  PostgreSQL username.
+</ParamField>
+
+<ParamField path="password" type="string" default="listmonk">
+  PostgreSQL password. Use `LISTMONK_db__password_FILE` for Docker secrets.
+</ParamField>
+
+<ParamField path="database" type="string" default="listmonk">
+  PostgreSQL database name. Must be created before running listmonk.
+</ParamField>
+
+<ParamField path="ssl_mode" type="string" default="disable">
+  PostgreSQL SSL mode. Options: `disable`, `require`, `verify-ca`, `verify-full`.
+</ParamField>
+
+<ParamField path="max_open" type="integer" default="25">
+  Maximum number of open database connections in the pool.
+</ParamField>
+
+<ParamField path="max_idle" type="integer" default="25">
+  Maximum number of idle database connections.
+</ParamField>
+
+<ParamField path="max_lifetime" type="string" default="300s">
+  Maximum lifetime of a database connection (e.g., "300s", "5m").
+</ParamField>
+
+<ParamField path="params" type="string" default="">
+  Optional space-separated PostgreSQL DSN parameters.
+  
+  Example: `"application_name=listmonk gssencmode=disable"`
+</ParamField>
+
+## Admin UI Settings
+
+Most operational settings are managed through the admin UI under **Settings**:
+
+<CardGroup cols={2}>
+  <Card title="General" icon="sliders">
+    - Site name and language
+    - Root URL for links in emails
+    - Favicon and logo customization
+  </Card>
+  
+  <Card title="SMTP" icon="envelope">
+    - Multiple SMTP server configurations
+    - Connection pooling and rate limiting
+    - Retry settings
+  </Card>
+  
+  <Card title="Bounces" icon="triangle-exclamation">
+    - Bounce processing configuration
+    - POP3 mailbox or webhook settings
+    - Auto-blocklist or delete on bounce
+  </Card>
+  
+  <Card title="Media" icon="image">
+    - File upload provider (filesystem or S3)
+    - Upload path and size limits
+    - Image quality settings
+  </Card>
+  
+  <Card title="Appearance" icon="palette">
+    - Public subscription page styling
+    - Custom CSS and JavaScript
+    - Email template customization
+  </Card>
+  
+  <Card title="Privacy" icon="shield">
+    - Enable/disable tracking pixel
+    - Enable/disable link tracking
+    - Anonymous tracking options
+  </Card>
+  
+  <Card title="Performance" icon="gauge">
+    - Batch size for campaigns
+    - Concurrency settings
+    - Message rate limits
+  </Card>
+  
+  <Card title="Security" icon="lock">
+    - Enable/disable public subscription
+    - CAPTCHA settings
+    - API authentication
+  </Card>
+</CardGroup>
+
+## HTTP Routes
+
+When configuring auth proxies and web application firewalls, use these route definitions:
+
+### Private Admin Endpoints
+
+<Warning>
+  These routes should be protected and only accessible to administrators.
+</Warning>
+
+| Methods | Route | Description |
+| ------- | ----- | ----------- |
+| `*` | `/api/*` | Admin REST APIs |
+| `GET` | `/admin/*` | Admin UI and HTML pages |
+| `POST` | `/webhooks/bounce` | Admin bounce webhook |
+
+### Public Endpoints
+
+<Note>
+  These routes should be exposed to the internet for subscriber interactions.
+</Note>
+
+| Methods | Route | Description |
+| ------- | ----- | ----------- |
+| `GET, POST` | `/subscription/*` | HTML subscription pages |
+| `GET` | `/link/*` | Tracked link redirection |
+| `GET` | `/campaign/*` | Pixel tracking image |
+| `GET` | `/public/*` | Static files for subscription pages |
+| `POST` | `/webhooks/service/*` | Bounce webhooks for AWS SES and SendGrid |
+| `GET` | `/uploads/*` | Uploaded media files |
+
+## Media Uploads
+
+Configure file upload storage for campaign images and attachments.
+
+<Tabs>
+  <Tab title="Docker Volumes">
+    Using Docker volumes (managed by Docker):
+    
+    ```yaml docker-compose.yml
+    services:
+      app:
+        volumes:
+          - type: volume
+            source: listmonk-uploads
+            target: /listmonk/uploads
+    
+    volumes:
+      listmonk-uploads:
+    ```
+    
+    Find the host path:
+    ```bash
+    docker volume inspect listmonk_listmonk-uploads
+    ```
+    
+    In admin UI (**Settings → Media**), set upload path to: `/listmonk/uploads`
+  </Tab>
+  
+  <Tab title="Bind Mounts">
+    Using bind mounts (specific host directory):
+    
+    ```yaml docker-compose.yml
+    services:
+      app:
+        volumes:
+          - ./uploads:/listmonk/uploads
+    ```
+    
+    This mounts `./uploads` from your host to `/listmonk/uploads` in the container.
+    
+    In admin UI (**Settings → Media**), set upload path to: `/listmonk/uploads`
+  </Tab>
+  
+  <Tab title="Filesystem (Binary)">
+    For binary installations, create an uploads directory:
+    
+    ```bash
+    mkdir -p /var/listmonk/uploads
+    chown listmonk:listmonk /var/listmonk/uploads
+    ```
+    
+    In admin UI (**Settings → Media**), set upload path to: `/var/listmonk/uploads`
+  </Tab>
+</Tabs>
+
+## Logging
+
+### Docker Logging
+
+View Docker container logs:
+
+```bash
+# Follow logs in real-time
+sudo docker logs -f listmonk_app
+
+# View logs with timestamps
+sudo docker logs listmonk_app -t
+
+# View database logs
+sudo docker logs listmonk_db -t
+```
+
+Configure Docker logging driver in `/etc/docker/daemon.json`:
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+```
+
+<Card title="Docker Logging Documentation" icon="docker" href="https://docs.docker.com/config/containers/logging/configure/">
+  Learn more about Docker logging drivers and configuration
+</Card>
+
+### Binary Logging
+
+listmonk logs to `stdout` by default. To save logs to a file:
+
+```bash
+./listmonk > listmonk.log 2>&1
+```
+
+For systemd service with persistent logging:
+
+```ini
+[Service]
+ExecStart=/bin/bash -ce "exec /usr/bin/listmonk --config /etc/listmonk/config.toml --static-dir /etc/listmonk/static >>/etc/listmonk/listmonk.log 2>&1"
+```
+
+<Note>
+  The **Settings → Logs** page in the admin UI shows the last 1000 lines but is cleared on restart.
+</Note>
+
+## Time Zone
+
+Configure the time zone for timestamps in logs and scheduled campaigns.
+
+### Docker
+
+Set the `TZ` environment variable in `docker-compose.yml`:
+
+```yaml
+environment:
+  - TZ=America/New_York
+```
+
+See [list of time zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) for valid values.
+
+Restart after changes:
+```bash
+docker compose down && docker compose up -d
+```
+
+### Binary
+
+Set the `TZ` environment variable before running:
+
+```bash
+export TZ=America/New_York
+./listmonk
+```
+
+Or in systemd service file:
+
+```ini
+[Service]
+Environment="TZ=America/New_York"
+```
+
+## SMTP Configuration
+
+### Retries
+
+The **Settings → SMTP → Retries** setting controls how many times a failed message is retried using different connections from the SMTP pool.
+
+- Failed messages are retried silently
+- Messages that fail after all retries are logged as errors
+- Adjust based on your SMTP provider's reliability
+
+<Tip>
+  Start with 2-3 retries. Increase if you see intermittent connection issues.
+</Tip>
+
+### SMTP Ports
+
+<Warning>
+  Some hosting providers block outgoing SMTP ports (25, 465, 587). You may need to contact your host to unblock them.
+</Warning>
+
+Common SMTP ports:
+- **Port 25**: Unencrypted (often blocked)
+- **Port 587**: TLS/STARTTLS (recommended)
+- **Port 465**: SSL (older, still widely supported)
+
+Examples:
+- **Hetzner**: [Port 25 blocked by default](https://docs.hetzner.com/cloud/servers/faq/#why-can-i-not-send-any-mails-from-my-server)
+- **AWS EC2**: [Request port 25 limit removal](https://aws.amazon.com/premiumsupport/knowledge-center/ec2-port-25-throttle/)
+
+## Performance Tuning
+
+### Batch Size
+
+**Settings → Performance → Batch size** controls the number of subscribers fetched from the database in each cycle (~5 seconds) when a campaign is running.
+
+<ParamField path="Batch size" type="integer" default="1000">
+  - **Lower values** (500-1000): Less memory usage, more database queries
+  - **Higher values** (5000-10000): More memory usage, fewer database queries
+  - **For large lists** (millions): Increase to 10,000+ for better throughput
+</ParamField>
+
+### Concurrency
+
+**Settings → Performance → Concurrency** sets the number of concurrent workers sending emails.
+
+<ParamField path="Concurrency" type="integer" default="10">
+  - Match to your SMTP server's connection limit
+  - Higher values = faster sending but more server load
+  - Most SMTP providers limit to 10-50 concurrent connections
+</ParamField>
+
+### Message Rate
+
+**Settings → SMTP → Max. messages/sec** controls the sending rate per SMTP configuration.
+
+<ParamField path="Max. messages/sec" type="integer" default="10">
+  - Set based on your SMTP provider's rate limits
+  - Examples:
+    - Amazon SES: 14 messages/second (free tier)
+    - SendGrid: varies by plan
+    - Gmail: ~30 messages/minute
+</ParamField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Concepts" icon="book" href="/concepts">
+    Learn about subscribers, lists, campaigns, and templates
+  </Card>
+  <Card title="Templating" icon="code">
+    Create dynamic email templates with Go templates
+  </Card>
+  <Card title="Bounces" icon="triangle-exclamation">
+    Set up bounce handling to maintain list quality
+  </Card>
+  <Card title="API Reference" icon="brackets-curly">
+    Integrate listmonk with your applications
+  </Card>
+</CardGroup>

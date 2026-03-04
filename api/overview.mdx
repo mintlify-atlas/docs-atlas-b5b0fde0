@@ -1,0 +1,143 @@
+---
+title: API Overview
+description: Learn about the Listmonk REST API structure, response formats, error codes, and how to interact with all dashboard features programmatically
+---
+
+All features that are available on the listmonk dashboard are also available as REST-like HTTP APIs that can be interacted with directly. Request and response bodies are JSON. This allows easy scripting of listmonk and integration with other systems, for instance, synchronization with external subscriber databases.
+
+## API Structure
+
+The Listmonk API follows REST-like conventions with predictable resource-oriented URLs. All API endpoints are prefixed with `/api/` and return JSON responses.
+
+### Base URL
+
+All API requests should be made to:
+
+```
+http://your-listmonk-instance.com/api/
+```
+
+## Response Structure
+
+### Successful Request
+
+All successful API responses return a `200 OK` status code with a JSON body containing a `data` key:
+
+```json
+{
+  "data": {}
+}
+```
+
+**Example:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+    "data": {}
+}
+```
+
+All responses from the API server are JSON with the content-type `application/json` unless explicitly stated otherwise. A successful 200 OK response always has a JSON response body with a status key with the value success. The `data` key contains the full response payload.
+
+### Failed Request
+
+Failed requests return an appropriate HTTP error status code (`40x` or `50x`) with a JSON body containing a `message` key:
+
+```json
+{
+  "message": "Error message"
+}
+```
+
+**Example:**
+
+```http
+HTTP/1.1 500 Server error
+Content-Type: application/json
+
+{
+    "message": "Error message"
+}
+```
+
+There may be an optional `data` key with additional payload information.
+
+## Timestamps
+
+All timestamp fields follow the ISO 8601 format with milliseconds and timezone offset:
+
+```
+2019-01-01T09:00:00.000000+05:30
+```
+
+The seconds component is suffixed by the milliseconds, followed by the `+` and the timezone offset.
+
+## Common HTTP Error Codes
+
+| Code | Description |
+|------|-------------|
+| 400  | Missing or bad request parameters or values |
+| 403  | Session expired or invalid. Must relogin |
+| 404  | Request resource was not found |
+| 405  | Request method (GET, POST etc.) is not allowed on the requested endpoint |
+| 410  | The requested resource is gone permanently |
+| 422  | Unprocessable entity. Unable to process request as it contains invalid data |
+| 429  | Too many requests to the API (rate limiting) |
+| 500  | Something unexpected went wrong |
+| 502  | The backend OMS is down and the API is unable to communicate with it |
+| 503  | Service unavailable; the API is down |
+| 504  | Gateway timeout; the API is unreachable |
+
+## Rate Limiting
+
+When you exceed the rate limit, the API will return a `429 Too Many Requests` status code. Implement exponential backoff in your client application to handle rate limiting gracefully.
+
+## CORS Support
+
+CORS (Cross-Origin Resource Sharing) can be configured by setting allowed origins in the application settings. When configured, the API will include appropriate CORS headers in responses.
+
+From the source code (cmd/handlers.go:44-49):
+
+```go
+// Configure CORS middleware if domains are configured.
+if len(a.cfg.Security.CorsOrigins) > 0 {
+    e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+        AllowOrigins: a.cfg.Security.CorsOrigins,
+        AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+    }))
+}
+```
+
+## OpenAPI (Swagger) Specification
+
+The auto-generated OpenAPI (Swagger) specification site for the APIs is available at:
+
+[**listmonk.app/docs/swagger**](https://listmonk.app/docs/swagger/)
+
+Use the interactive Swagger documentation to explore all available endpoints, request parameters, and response schemas.
+
+## Health Check
+
+You can check the API health status using the health endpoint:
+
+```bash
+curl http://localhost:9000/api/health
+```
+
+**Response:**
+
+```json
+{
+  "data": true
+}
+```
+
+Alternatively, a public health endpoint is available at `/health` (without authentication).
+
+## Next Steps
+
+- [Authentication](/api/authentication) - Learn how to authenticate API requests
+- [API Reference](https://listmonk.app/docs/swagger/) - Explore all available endpoints

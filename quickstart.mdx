@@ -1,80 +1,376 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get started with listmonk by creating your first list and sending your first campaign
 ---
 
-## Get started in three steps
-
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+This guide walks you through setting up your first mailing list and sending your first campaign with listmonk.
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Before starting, ensure you have completed the [installation](/installation) and can access the listmonk admin interface at `http://localhost:9000`.
 </Note>
+
+## Initial Setup
+
+<Steps>
+  <Step title="Create Super Admin Account">
+    On your first visit to listmonk, you'll be prompted to create a Super Admin account.
+    
+    - Enter your desired username
+    - Create a strong password
+    - Click "Setup"
+    
+    <Tip>
+      You can also set these credentials during installation using environment variables:
+      
+      ```bash
+      LISTMONK_ADMIN_USER=admin LISTMONK_ADMIN_PASSWORD=yourpassword
+      ```
+    </Tip>
+  </Step>
+  
+  <Step title="Configure SMTP Settings">
+    Navigate to **Settings → SMTP** to configure your email server:
+    
+    1. Click "Add new" to create an SMTP configuration
+    2. Fill in your SMTP server details:
+       - **Host**: Your SMTP server address (e.g., `smtp.gmail.com`)
+       - **Port**: Typically 587 (TLS) or 465 (SSL)
+       - **Username**: Your SMTP username
+       - **Password**: Your SMTP password
+       - **TLS**: Enable for secure connections
+    3. Set **Max. connections** (e.g., 10) and **Max. messages/sec** (e.g., 5)
+    4. Click "Save"
+    
+    <Warning>
+      Some server hosts block outgoing SMTP ports (25, 465). You may need to contact your hosting provider to unblock them.
+    </Warning>
+  </Step>
+</Steps>
+
+## Create Your First List
+
+Lists are used to organize subscribers into groups for targeted campaigns.
+
+<Steps>
+  <Step title="Navigate to Lists">
+    Click on **Lists** in the left sidebar.
+  </Step>
+  
+  <Step title="Create a new list">
+    Click the **"Create new"** button and fill in the details:
+    
+    - **Name**: e.g., "Newsletter Subscribers"
+    - **Type**: 
+      - **Public**: Anyone can subscribe via public forms
+      - **Private**: Only you can add subscribers
+    - **Opt-in**: 
+      - **Single**: Subscribers are added immediately
+      - **Double**: Subscribers must confirm via email
+    - **Tags**: Optional tags for organizing lists (e.g., "newsletter", "customers")
+    - **Description**: Optional description for internal use
+    
+    Click **"Save"** to create the list.
+  </Step>
+</Steps>
+
+<Note>
+  **Double opt-in** lists require subscribers to confirm their subscription by clicking a link in a confirmation email. This ensures better list quality and GDPR compliance.
+</Note>
+
+## Add Subscribers
+
+There are multiple ways to add subscribers to your lists:
+
+<Tabs>
+  <Tab title="Manual Entry">
+    <Steps>
+      <Step title="Navigate to Subscribers">
+        Click **Subscribers** in the left sidebar.
+      </Step>
+      
+      <Step title="Add single subscriber">
+        Click **"Create new"** and enter:
+        
+        - **Email**: The subscriber's email address
+        - **Name**: The subscriber's name (optional but recommended)
+        - **Lists**: Select one or more lists to add them to
+        - **Status**: Choose subscription status:
+          - **Confirmed**: Subscriber will receive campaigns immediately
+          - **Unconfirmed**: For single opt-in lists
+        - **Attributes**: Add custom JSON attributes (optional)
+        
+        Example attributes:
+        ```json
+        {
+          "city": "San Francisco",
+          "interests": ["technology", "design"],
+          "signup_date": "2024-01-15"
+        }
+        ```
+        
+        Click **"Save"**.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Bulk Import">
+    <Steps>
+      <Step title="Prepare CSV file">
+        Create a CSV file with subscriber data:
+        
+        ```csv
+        email,name,attributes
+        john@example.com,John Doe,"{""city"": ""New York""}"
+        jane@example.com,Jane Smith,"{""city"": ""London""}"
+        ```
+      </Step>
+      
+      <Step title="Import subscribers">
+        1. Go to **Subscribers → Import**
+        2. Choose your CSV file
+        3. Select the target list(s)
+        4. Map CSV columns to subscriber fields
+        5. Choose how to handle existing subscribers
+        6. Click **"Import"**
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Public Subscription Form">
+    Listmonk provides built-in subscription forms:
+    
+    1. Go to **Lists** and click on your list
+    2. Copy the **Public subscription URL**
+    3. Share this URL or embed it on your website
+    
+    Example URL:
+    ```
+    https://your-domain.com/subscription/form
+    ```
+    
+    <Tip>
+      Customize subscription forms in **Settings → Appearance**.
+    </Tip>
+  </Tab>
+  
+  <Tab title="API">
+    Use the listmonk API to programmatically add subscribers:
+    
+    ```bash
+    curl -X POST 'http://localhost:9000/api/subscribers' \
+      -u 'username:password' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "email": "subscriber@example.com",
+        "name": "John Doe",
+        "status": "enabled",
+        "lists": [1],
+        "attribs": {
+          "city": "Bangalore",
+          "projects": 3
+        }
+      }'
+    ```
+  </Tab>
+</Tabs>
+
+## Create a Campaign Template
+
+Templates provide reusable HTML designs for your campaigns.
+
+<Steps>
+  <Step title="Navigate to Templates">
+    Click **Campaigns → Templates** in the left sidebar.
+  </Step>
+  
+  <Step title="Create template">
+    Listmonk comes with a default template. To create a custom one:
+    
+    1. Click **"Create new"**
+    2. Enter a **Name** (e.g., "Newsletter Template")
+    3. Add your HTML template code
+    
+    Use the placeholder `{{ template "content" . }}` where campaign content should appear:
+    
+    ```html
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>{{ .Campaign.Name }}</title>
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #007bff; color: white; padding: 20px; }
+            .content { padding: 20px; background: #ffffff; }
+            .footer { text-align: center; padding: 20px; color: #666; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>My Newsletter</h1>
+            </div>
+            <div class="content">
+                {{ template "content" . }}
+            </div>
+            <div class="footer">
+                <p>{{ .Campaign.FromEmail }}</p>
+                <p><a href="{{ UnsubscribeURL }}">Unsubscribe</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ```
+    
+    4. Click **"Save"**
+  </Step>
+</Steps>
+
+<Tip>
+  Listmonk uses Go templates, which support variables, conditionals, and loops. Learn more in the [templating documentation](/features/templates).
+</Tip>
+
+## Create and Send Your First Campaign
+
+Now you're ready to create and send your first email campaign.
+
+<Steps>
+  <Step title="Create new campaign">
+    1. Click **Campaigns** in the left sidebar
+    2. Click **"Create new"**
+  </Step>
+  
+  <Step title="Configure campaign details">
+    Fill in the campaign form:
+    
+    - **Name**: Internal name (e.g., "January 2024 Newsletter")
+    - **Subject**: Email subject line (supports template variables)
+    - **From email**: Sender email address
+    - **Lists**: Select which lists to send to
+    - **Template**: Choose your template
+    - **Tags**: Optional tags for organization
+    - **Messenger**: Default is "email" (SMTP)
+    
+    Example subject with variable:
+    ```
+    Hi {{ .Subscriber.FirstName }}, check out our January update!
+    ```
+  </Step>
+  
+  <Step title="Compose campaign content">
+    Write your campaign content using the rich text editor or raw HTML:
+    
+    ```html
+    <h2>Welcome to our January Newsletter!</h2>
+    
+    <p>Hi {{ .Subscriber.FirstName | default .Subscriber.Name }},</p>
+    
+    <p>We're excited to share our latest updates with you:</p>
+    
+    <ul>
+        <li>New feature releases</li>
+        <li>Upcoming events</li>
+        <li>Community highlights</li>
+    </ul>
+    
+    <p><a href="https://example.com/blog">Read more on our blog</a></p>
+    
+    <p>Best regards,<br>The Team</p>
+    ```
+    
+    <Note>
+      Use template variables to personalize content:
+      - `{{ .Subscriber.Name }}` - Subscriber name
+      - `{{ .Subscriber.Email }}` - Subscriber email
+      - `{{ .Subscriber.Attribs.city }}` - Custom attribute
+    </Note>
+  </Step>
+  
+  <Step title="Preview and test">
+    1. Click **"Preview"** to see how the email will look
+    2. Click **"Send test"** to send a test email to yourself
+    3. Verify the email appears correctly in your inbox
+  </Step>
+  
+  <Step title="Schedule or send">
+    You have two options:
+    
+    **Option 1: Send immediately**
+    - Set status to **"Running"**
+    - Click **"Start campaign"**
+    
+    **Option 2: Schedule for later**
+    - Set status to **"Scheduled"**
+    - Choose date and time
+    - Click **"Schedule campaign"**
+  </Step>
+  
+  <Step title="Monitor campaign">
+    Once sent, monitor your campaign:
+    
+    - View **real-time statistics** (sent, views, clicks, bounces)
+    - Check **detailed analytics** on the campaign page
+    - Review **link click tracking** to see engagement
+  </Step>
+</Steps>
+
+## Understanding Campaign Statistics
+
+After sending a campaign, you'll see various metrics:
+
+- **Sent**: Total emails successfully sent
+- **Views**: Number of emails opened (requires tracking pixel)
+- **Clicks**: Number of link clicks (requires link tracking)
+- **Bounces**: Emails that failed to deliver
+
+<Warning>
+  Tracking pixels and link tracking should be used in compliance with privacy regulations like GDPR. You can enable anonymous tracking in Settings.
+</Warning>
+
+## Next Steps
+
+Now that you've sent your first campaign, explore more features:
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Learn about advanced configuration options
+  </Card>
+  <Card title="Concepts" icon="book" href="/concepts">
+    Understand subscribers, lists, templates, and more
+  </Card>
+  <Card title="Segmentation" icon="filter">
+    Create targeted campaigns using subscriber attributes
+  </Card>
+  <Card title="Transactional Emails" icon="bolt">
+    Send automated emails via API
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Emails not sending">
+    Check the following:
+    1. SMTP settings are correct in Settings → SMTP
+    2. Your SMTP provider allows the sending rate you've configured
+    3. Check logs in Settings → Logs for error messages
+    4. Verify SMTP ports aren't blocked by your hosting provider
+  </Accordion>
+  
+  <Accordion title="Subscribers not receiving emails">
+    Possible causes:
+    1. Subscriber status is not "confirmed" (for double opt-in lists)
+    2. Subscriber is not in the selected list
+    3. Subscriber is marked as "blocklisted"
+    4. Campaign is still in "draft" or "paused" status
+  </Accordion>
+  
+  <Accordion title="High bounce rate">
+    To reduce bounces:
+    1. Enable bounce processing in Settings → Bounces
+    2. Use double opt-in to ensure valid email addresses
+    3. Regularly clean your subscriber list
+    4. Configure bounce webhooks for your SMTP provider
+  </Accordion>
+</AccordionGroup>

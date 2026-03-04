@@ -1,0 +1,392 @@
+---
+title: Templates API
+description: API endpoints for managing email templates in Listmonk
+---
+
+Manage email templates used for campaigns and transactional messages. Templates support HTML, visual editor content, and Go template syntax.
+
+## Get Templates
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/templates</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve all templates.
+
+### Response
+
+<ResponseField name="data" type="array">
+  Array of template objects.
+  <ResponseField name="id" type="number">
+    Template's unique ID.
+  </ResponseField>
+  <ResponseField name="name" type="string">
+    Template name.
+  </ResponseField>
+  <ResponseField name="body" type="string">
+    HTML body of the template.
+  </ResponseField>
+  <ResponseField name="body_source" type="string">
+    JSON source for visual editor templates.
+  </ResponseField>
+  <ResponseField name="type" type="string">
+    Template type: `campaign`, `campaign_visual`, or `tx`.
+  </ResponseField>
+  <ResponseField name="is_default" type="boolean">
+    Whether this is the default template.
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Timestamp when template was created.
+  </ResponseField>
+  <ResponseField name="updated_at" type="string">
+    Timestamp when template was last updated.
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "created_at": "2020-03-14T17:36:41.288578+01:00",
+            "updated_at": "2020-03-14T17:36:41.288578+01:00",
+            "name": "Default template",
+            "body": "{{ template \"content\" . }}",
+            "body_source": null,
+            "type": "campaign",
+            "is_default": true
+        }
+    ]
+}
+```
+</ResponseExample>
+
+## Get Template by ID
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/templates/{template_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve a specific template.
+
+### Path Parameters
+
+<ParamField path="template_id" type="number" required>
+  ID of the template to retrieve.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates/1'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 1,
+        "created_at": "2020-03-14T17:36:41.288578+01:00",
+        "updated_at": "2020-03-14T17:36:41.288578+01:00",
+        "name": "Default template",
+        "body": "{{ template \"content\" . }}",
+        "body_source": null,
+        "type": "campaign",
+        "is_default": true
+    }
+}
+```
+</ResponseExample>
+
+## Preview Template
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/templates/{template_id}/preview</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve the HTML preview of a template.
+
+### Path Parameters
+
+<ParamField path="template_id" type="number" required>
+  ID of the template to preview.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/templates/1/preview'
+```
+</RequestExample>
+
+<ResponseExample>
+```html
+<p>Hi there</p>
+<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis et elit ac elit sollicitudin condimentum non a magna.
+	Sed tempor mauris in facilisis vehicula. Aenean nisl urna, accumsan ac tincidunt vitae, interdum cursus massa.
+	Interdum et malesuada fames ac ante ipsum primis in faucibus. Aliquam varius turpis et turpis lacinia placerat.
+	Aenean id ligula a orci lacinia blandit at eu felis. Phasellus vel lobortis lacus. Suspendisse leo elit, luctus sed
+	erat ut, venenatis fermentum ipsum. Donec bibendum neque quis.</p>
+
+<h3>Sub heading</h3>
+<p>Nam luctus dui non placerat mattis. Morbi non accumsan orci, vel interdum urna. Duis faucibus id nunc ut euismod.
+	Curabitur et eros id erat feugiat fringilla in eget neque. Aliquam accumsan cursus eros sed faucibus.</p>
+
+<p>Here is a link to <a href="https://listmonk.app" target="_blank">listmonk</a>.</p>
+```
+</ResponseExample>
+
+## Create Template
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/templates</path>
+  </endpoint>
+</api-endpoint>
+
+Create a new template.
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the template.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Type of the template: `campaign`, `campaign_visual`, or `tx`.
+</ParamField>
+
+<ParamField body="subject" type="string">
+  Subject line for the template (only for `tx` type).
+</ParamField>
+
+<ParamField body="body_source" type="string">
+  If type is `campaign_visual`, the JSON source for the email-builder template.
+</ParamField>
+
+<ParamField body="body" type="string" required>
+  HTML body of the template.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/templates' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "New template",
+    "type": "campaign",
+    "subject": "Your Weekly Newsletter",
+    "body": "<h1>Header</h1><p>Content goes here</p>"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": [
+        {
+            "id": 2,
+            "created_at": "2020-03-14T17:36:41.288578+01:00",
+            "updated_at": "2020-03-14T17:36:41.288578+01:00",
+            "name": "New template",
+            "body": "<h1>Header</h1><p>Content goes here</p>",
+            "body_source": null,
+            "type": "campaign",
+            "is_default": false
+        }
+    ]
+}
+```
+</ResponseExample>
+
+## Preview Template (POST)
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/templates/preview</path>
+  </endpoint>
+</api-endpoint>
+
+Render and preview a template without saving it.
+
+### Body Parameters
+
+Use the same parameters as Create Template.
+
+## Update Template
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/templates/{template_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Update a template.
+
+### Path Parameters
+
+<ParamField path="template_id" type="number" required>
+  ID of the template to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string">
+  Name of the template.
+</ParamField>
+
+<ParamField body="type" type="string">
+  Type of the template: `campaign`, `campaign_visual`, or `tx`.
+</ParamField>
+
+<ParamField body="subject" type="string">
+  Subject line for the template (only for `tx` type).
+</ParamField>
+
+<ParamField body="body_source" type="string">
+  If type is `campaign_visual`, the JSON source for the email-builder template.
+</ParamField>
+
+<ParamField body="body" type="string">
+  HTML body of the template.
+</ParamField>
+
+<Note>Refer to parameters from the Create Template endpoint.</Note>
+
+## Set Default Template
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/templates/{template_id}/default</path>
+  </endpoint>
+</api-endpoint>
+
+Set a template as the default.
+
+### Path Parameters
+
+<ParamField path="template_id" type="number" required>
+  ID of the template to set as default.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X PUT 'http://localhost:9000/api/templates/1/default'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 1,
+        "created_at": "2020-03-14T17:36:41.288578+01:00",
+        "updated_at": "2020-03-14T17:36:41.288578+01:00",
+        "name": "Default template",
+        "body": "{{ template \"content\" . }}",
+        "body_source": null,
+        "type": "campaign",
+        "is_default": true
+    }
+}
+```
+</ResponseExample>
+
+## Delete Template
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/templates/{template_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Delete a template.
+
+### Path Parameters
+
+<ParamField path="template_id" type="number" required>
+  ID of the template to delete.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/templates/35'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Template Types
+
+### Campaign Templates
+
+Used for regular campaign emails. These templates wrap campaign content and provide the overall email structure.
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ .Campaign.Subject }}</title>
+</head>
+<body>
+  {{ template "content" . }}
+</body>
+</html>
+```
+
+### Campaign Visual Templates
+
+Used with the visual email builder. The `body_source` field contains the JSON definition for the visual editor.
+
+### Transactional Templates
+
+Used for transactional messages sent via the `/api/tx` endpoint. Can include a default subject line.
+
+## Template Variables
+
+Templates support Go template syntax with the following variables:
+
+- `{{ .Subscriber.Email }}` - Subscriber's email
+- `{{ .Subscriber.Name }}` - Subscriber's name
+- `{{ .Subscriber.UUID }}` - Subscriber's UUID
+- `{{ .Subscriber.Attribs }}` - Custom subscriber attributes
+- `{{ .Campaign.Name }}` - Campaign name
+- `{{ .Campaign.Subject }}` - Campaign subject
+- `{{ .Tx.Data }}` - Transactional message data
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `400 Bad Request` - Invalid parameters
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - Template not found
+- `500 Internal Server Error` - Server error

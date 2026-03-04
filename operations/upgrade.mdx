@@ -1,0 +1,296 @@
+---
+title: Upgrading Listmonk
+description: Step-by-step guide to upgrading Listmonk to the latest version with database migrations
+---
+
+<Warning>
+  **Always take a backup of the Postgres database before upgrading listmonk**. Database upgrades are irreversible without a backup.
+</Warning>
+
+## Overview
+
+Listmonk provides an automated upgrade mechanism that handles database schema migrations. The `--upgrade` flag runs idempotent migrations that safely upgrade your database to the current version.
+
+## Binary Installation
+
+<Steps>
+  <Step title="Stop the running instance">
+    If listmonk is running as a service:
+    
+    ```bash
+    sudo systemctl stop listmonk
+    # or
+    sudo service listmonk stop
+    ```
+    
+    If it's not running as a service:
+    
+    ```bash
+    pkill -9 listmonk
+    ```
+  </Step>
+  
+  <Step title="Download and replace the binary">
+    Download the [latest release](https://github.com/knadh/listmonk/releases) and extract the listmonk binary:
+    
+    ```bash
+    # Download and extract (replace with actual version)
+    wget https://github.com/knadh/listmonk/releases/download/vX.X.X/listmonk_X.X.X_linux_amd64.tar.gz
+    tar -xzf listmonk_X.X.X_linux_amd64.tar.gz
+    
+    # Overwrite the previous binary
+    sudo cp listmonk /usr/local/bin/listmonk
+    ```
+  </Step>
+  
+  <Step title="Run the upgrade">
+    Execute the database migrations:
+    
+    ```bash
+    ./listmonk --upgrade
+    ```
+    
+    The upgrade process will:
+    - Prompt for confirmation (unless using `--yes` flag)
+    - Check pending migrations
+    - Execute migrations in sequence
+    - Record migration versions in the database
+  </Step>
+  
+  <Step title="Restart listmonk">
+    Start the service again:
+    
+    ```bash
+    sudo systemctl start listmonk
+    # or
+    sudo service listmonk start
+    # or run directly
+    ./listmonk
+    ```
+  </Step>
+</Steps>
+
+## Docker Installation
+
+### Modern docker-compose.yml (Recommended)
+
+The new docker-compose.yml automatically handles upgrades on container start:
+
+```bash
+docker compose down app
+docker compose pull
+docker compose up app -d
+```
+
+### Legacy docker-compose.yml
+
+For older docker-compose files, you need to run the `--upgrade` step manually:
+
+```bash
+docker-compose down
+docker-compose pull && docker-compose run --rm app ./listmonk --upgrade
+docker-compose up -d app db
+```
+
+## Railway Deployment
+
+<Steps>
+  <Step title="Navigate to your dashboard">
+    Go to your Railway dashboard and select your Listmonk project.
+  </Step>
+  
+  <Step title="Select the GitHub deployment service">
+    Choose the service connected to your GitHub repository.
+  </Step>
+  
+  <Step title="Redeploy">
+    In the Deployment tab, find the latest deployment, click the three vertical dots, and select "Redeploy".
+  </Step>
+</Steps>
+
+## How Upgrades Work
+
+The upgrade system is defined in `cmd/upgrade.go:49-98` and works as follows:
+
+### Migration List
+
+```go
+var migList = []migFunc{
+    {"v0.4.0", migrations.V0_4_0},
+    {"v0.7.0", migrations.V0_7_0},
+    // ... more versions
+    {"v6.0.0", migrations.V6_0_0},
+    {"v6.1.0", migrations.V6_1_0},
+}
+```
+
+Each migration function:
+- Is idempotent (safe to run multiple times)
+- Executes database schema changes
+- Records the migration version in the `settings` table
+
+### Pending Migrations
+
+The system:
+1. Retrieves the last recorded migration version from the database
+2. Compares it against the migration list using semver
+3. Executes all migrations newer than the last recorded version
+4. Records each successful migration
+
+<Note>
+  If no migrations are pending, you'll see: "no upgrades to run. Database is up to date."
+</Note>
+
+## Upgrading to v4.x.x
+
+<Warning>
+  v4 introduces **multi-user support** and significant changes to authentication.
+</Warning>
+
+### Key Changes
+
+#### 1. New Login UI
+
+The browser BasicAuth prompt is replaced with a custom login page at `/admin/login`.
+
+#### 2. API Credentials
+
+If you use APIs:
+
+<Steps>
+  <Step title="Create API user">
+    After upgrading, go to **Settings → Users** and create a new API user with necessary permissions.
+  </Step>
+  
+  <Step title="Update integrations">
+    Replace the old `admin_username` and `admin_password` from config.toml with the new API credentials.
+  </Step>
+</Steps>
+
+#### 3. Remove Legacy Credentials
+
+<Warning>
+  The admin dashboard shows a warning until `admin_username` and `admin_password` are removed from config.toml or environment variables.
+</Warning>
+
+These fields are now irrelevant as credentials are managed in the database.
+
+**Important**: Don't remove legacy credentials until you've created new API users if you have API integrations.
+
+## Downgrade Process
+
+<Warning>
+  Downgrading requires restoring a database backup. Databases upgraded with a newer version should not be used with older versions due to schema incompatibilities.
+</Warning>
+
+### General Steps
+
+<Steps>
+  <Step title="Stop listmonk">
+    ```bash
+    sudo docker stop listmonk_app
+    ```
+  </Step>
+  
+  <Step title="Restore pre-upgrade database">
+    <Warning>
+      This will **wipe your existing database**. Make sure you have the correct backup.
+    </Warning>
+    
+    ```bash
+    psql -h 127.0.0.1 -p 9432 -U listmonk
+    drop schema public cascade;
+    create schema public;
+    \q
+    psql -h 127.0.0.1 -p 9432 -U listmonk -W listmonk < listmonk-preupgrade-db.sql
+    ```
+  </Step>
+  
+  <Step title="Change version in docker-compose.yml">
+    ```yaml
+    x-app-defaults: &app-defaults
+      restart: unless-stopped
+      image: listmonk/listmonk:v2.4.0  # Specify the version
+    ```
+  </Step>
+  
+  <Step title="Restart">
+    ```bash
+    sudo docker compose up -d app db
+    ```
+  </Step>
+</Steps>
+
+## Nightly Builds
+
+<Warning>
+  Nightly releases are **untested and may have bugs**. Always backup before using nightly builds.
+</Warning>
+
+Nightly builds run migrations on every boot without recording them, allowing continuous testing of unreleased changes.
+
+See [Installation - Nightly builds](/installation#nightly-builds) for instructions.
+
+## Troubleshooting
+
+### Pending Migrations Error
+
+If listmonk fails to start with a message like:
+
+```
+there are 2 pending database upgrade(s): [v6.0.0 v6.1.0]. 
+The last upgrade was v5.1.0. 
+Backup the database and run listmonk --upgrade
+```
+
+This means:
+- The database schema doesn't match the binary version
+- You need to run `./listmonk --upgrade` before starting
+- The system detected pending migrations automatically
+
+### Migration Failures
+
+If a migration fails:
+
+1. Check the error message in the logs
+2. Ensure your Postgres user has sufficient permissions
+3. Restore from backup if necessary
+4. Report the issue on [GitHub](https://github.com/knadh/listmonk/issues)
+
+### Version Check
+
+The system checks for pending migrations at startup (see `cmd/upgrade.go:102-120`):
+
+```go
+func checkUpgrade(db *sqlx.DB) {
+    lastVer, toRun, err := getPendingMigrations(db)
+    if len(toRun) == 0 {
+        return
+    }
+    // Fatal error if migrations pending
+}
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Always backup first">
+    Use `pg_dump` to create a backup before every upgrade:
+    
+    ```bash
+    pg_dump -h localhost -U listmonk listmonk > listmonk-backup-$(date +%Y%m%d).sql
+    ```
+  </Step>
+  
+  <Step title="Test in staging">
+    If possible, test the upgrade on a staging environment with a copy of production data.
+  </Step>
+  
+  <Step title="Read the changelog">
+    Review the [release notes](https://github.com/knadh/listmonk/releases) for breaking changes and new features.
+  </Step>
+  
+  <Step title="Schedule maintenance window">
+    Plan upgrades during low-traffic periods to minimize disruption.
+  </Step>
+</Steps>

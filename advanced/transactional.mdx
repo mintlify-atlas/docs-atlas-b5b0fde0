@@ -1,0 +1,320 @@
+---
+title: Transactional Messages
+description: Send individual transactional emails via API for notifications, password resets, and personalized messages
+---
+
+Transactional messages allow you to send individual, event-driven emails outside of regular campaigns. Use this API endpoint for password resets, order confirmations, notifications, and other personalized one-to-one communications.
+
+## API Endpoint
+
+```
+POST /api/tx
+```
+
+<Note>
+  Requires the `tx:send` permission in the user's role.
+</Note>
+
+## Subscriber Modes
+
+Listmonk supports three modes for handling subscribers in transactional messages:
+
+<ParamField path="default" type="string">
+  Look up subscribers in the database. If not found, the request fails. Use `subscriber_emails` OR `subscriber_ids`.
+</ParamField>
+
+<ParamField path="fallback" type="string">
+  Look up subscribers in the database first. If not found, create an ephemeral subscriber for this message only. Only accepts `subscriber_emails`.
+</ParamField>
+
+<ParamField path="external" type="string">
+  Always create ephemeral subscribers without database lookup. Only accepts `subscriber_emails`. Ideal for sending to non-subscribers.
+</ParamField>
+
+## Request Parameters
+
+<ParamField path="subscriber_emails" type="array">
+  Array of email addresses to send to. Either this or `subscriber_ids` is required (unless using `external` mode).
+</ParamField>
+
+<ParamField path="subscriber_ids" type="array">
+  Array of subscriber IDs from the database. Cannot be used with `fallback` or `external` modes.
+</ParamField>
+
+<ParamField path="template_id" type="integer" required>
+  ID of the template to use for rendering the message.
+</ParamField>
+
+<ParamField path="subscriber_mode" type="string" default="default">
+  Subscriber handling mode: `default`, `fallback`, or `external`.
+</ParamField>
+
+<ParamField path="from_email" type="string">
+  Sender email address. Defaults to the system default if not provided.
+</ParamField>
+
+<ParamField path="messenger" type="string" default="email">
+  Messenger to use for sending. Defaults to the email messenger.
+</ParamField>
+
+<ParamField path="headers" type="array">
+  Optional array of custom email headers. Each item is an object with header name and value.
+</ParamField>
+
+<ParamField path="data" type="object">
+  Template variables to use when rendering the message body.
+</ParamField>
+
+<ParamField path="content_type" type="string">
+  Content type of the message: `richtext`, `html`, `plain`, or `markdown`.
+</ParamField>
+
+## Basic Example
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_emails": ["user@example.com"],
+    "template_id": 1,
+    "data": {
+      "name": "John Doe",
+      "order_id": "12345"
+    }
+  }'
+```
+
+## Sending to Multiple Recipients
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_emails": [
+      "user1@example.com",
+      "user2@example.com",
+      "user3@example.com"
+    ],
+    "template_id": 2,
+    "data": {
+      "subject": "System Notification",
+      "message": "Server maintenance scheduled"
+    }
+  }'
+```
+
+## Using Subscriber IDs
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_ids": [123, 456, 789],
+    "template_id": 1
+  }'
+```
+
+## External Mode Example
+
+Send to email addresses without requiring them to exist in your subscriber database:
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_mode": "external",
+    "subscriber_emails": ["external-user@example.com"],
+    "template_id": 3,
+    "from_email": "notifications@yoursite.com",
+    "data": {
+      "verification_code": "ABC123"
+    }
+  }'
+```
+
+## Fallback Mode Example
+
+Attempt to find subscribers in the database, but send anyway if not found:
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_mode": "fallback",
+    "subscriber_emails": ["maybe-exists@example.com"],
+    "template_id": 1
+  }'
+```
+
+## Custom Headers Example
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_emails": ["user@example.com"],
+    "template_id": 1,
+    "headers": [
+      {"Reply-To": "support@yoursite.com"},
+      {"X-Priority": "1"}
+    ],
+    "data": {
+      "subject": "Urgent: Password Reset"
+    }
+  }'
+```
+
+## With File Attachments
+
+Use `multipart/form-data` to include file attachments:
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -F 'data={"subscriber_emails":["user@example.com"],"template_id":1}' \
+  -F 'file=@invoice.pdf' \
+  -F 'file=@receipt.pdf'
+```
+
+## Template Variables
+
+You can pass custom data to templates that will be rendered using Go templates:
+
+```json
+{
+  "subscriber_emails": ["user@example.com"],
+  "template_id": 1,
+  "data": {
+    "user": {
+      "name": "John Doe",
+      "account_type": "premium"
+    },
+    "order": {
+      "id": "ORD-12345",
+      "total": 99.99,
+      "items": [
+        {"name": "Product A", "quantity": 2},
+        {"name": "Product B", "quantity": 1}
+      ]
+    },
+    "reset_url": "https://yoursite.com/reset?token=abc123"
+  }
+}
+```
+
+In your template:
+
+```html
+<h1>Hello {{ .Tx.Data.user.name }}!</h1>
+<p>Your order {{ .Tx.Data.order.id }} totaling ${{ .Tx.Data.order.total }} is confirmed.</p>
+
+<h2>Order Items:</h2>
+<ul>
+{{ range .Tx.Data.order.items }}
+  <li>{{ .name }} x {{ .quantity }}</li>
+{{ end }}
+</ul>
+
+<a href="{{ .Tx.Data.reset_url }}">Reset Password</a>
+```
+
+## Using Custom Messengers
+
+Send transactional messages via configured messengers (e.g., SMS, push notifications):
+
+```bash
+curl -X POST 'http://localhost:9000/api/tx' \
+  -u 'username:password' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "subscriber_emails": ["user@example.com"],
+    "template_id": 5,
+    "messenger": "sms",
+    "content_type": "plain",
+    "data": {
+      "code": "123456"
+    }
+  }'
+```
+
+## Response
+
+Success response:
+
+```json
+{
+  "data": true
+}
+```
+
+Error response when subscribers are not found (default mode):
+
+```json
+{
+  "message": "Subscriber not found: user@example.com"
+}
+```
+
+## Implementation Details
+
+From `cmd/tx.go`, the transactional message handler:
+
+```go
+// Send transactional message
+func (a *App) SendTxMessage(c echo.Context) error {
+    var m models.TxMessage
+
+    // Validate subscriber_mode
+    if m.SubscriberMode == "" {
+        m.SubscriberMode = models.TxSubModeDefault
+    }
+
+    switch m.SubscriberMode {
+    case models.TxSubModeDefault:
+        // Need subscriber_emails OR subscriber_ids
+    case models.TxSubModeFallback, models.TxSubModeExternal:
+        // Can only use subscriber_emails
+    }
+
+    // Get the template
+    tpl, err := a.manager.GetTpl(m.TemplateID)
+
+    // Render and send message
+    if err := m.Render(sub, tpl); err != nil {
+        return err
+    }
+
+    return a.manager.PushMessage(msg)
+}
+```
+
+## Best Practices
+
+<Warning>
+  Rate limits apply based on your SMTP configuration. Sending too many transactional messages rapidly may trigger throttling.
+</Warning>
+
+1. **Use external mode** for one-off notifications to non-subscribers
+2. **Create dedicated templates** for transactional messages (type `tx`)
+3. **Include unsubscribe options** even for transactional messages when legally required
+4. **Monitor delivery** through the bounce processing system
+5. **Keep content simple** for better deliverability
+
+## Permissions
+
+Users need the `tx:send` permission in their role to use this endpoint. Configure this in **Admin → Users → User roles**.
+
+```json
+{
+  "group": "subscribers",
+  "permissions": [
+    "tx:send"
+  ]
+}
+```

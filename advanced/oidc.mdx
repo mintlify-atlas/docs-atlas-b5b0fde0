@@ -1,0 +1,372 @@
+---
+title: OIDC Single Sign-On
+description: Configure OpenID Connect authentication with Keycloak, Authentik, Google Workspace, and other OIDC providers
+---
+
+Listmonk supports Single Sign-On (SSO) through OIDC (OpenID Connect), allowing users to authenticate using external identity providers. Any standards-compliant OIDC provider can be configured.
+
+## Enabling OIDC
+
+Configure OIDC in **Settings → Security → OIDC**.
+
+### Basic Configuration
+
+<ParamField path="enabled" type="boolean" required>
+  Enable or disable OIDC authentication.
+</ParamField>
+
+<ParamField path="provider_url" type="string" required>
+  The base URL of your OIDC provider. Must include the realm or tenant path.
+</ParamField>
+
+<ParamField path="provider_name" type="string" required>
+  Display name shown on the listmonk login form (e.g., "Login with OrgName").
+</ParamField>
+
+<ParamField path="client_id" type="string" required>
+  OAuth client ID from your OIDC provider.
+</ParamField>
+
+<ParamField path="client_secret" type="string" required>
+  OAuth client secret from your OIDC provider.
+</ParamField>
+
+<ParamField path="auto_create_users" type="boolean">
+  Automatically create user accounts when users log in via OIDC if they don't exist.
+</ParamField>
+
+<ParamField path="default_user_role_id" type="integer">
+  Default user role to assign to auto-created users. Required if auto_create_users is enabled.
+</ParamField>
+
+<ParamField path="default_list_role_id" type="integer">
+  Default list role to assign to auto-created users (optional).
+</ParamField>
+
+### Database Configuration
+
+From `schema.sql`:
+
+```json
+{
+  "enabled": false,
+  "provider_url": "",
+  "provider_name": "",
+  "client_id": "",
+  "client_secret": "",
+  "auto_create_users": false,
+  "default_user_role_id": null,
+  "default_list_role_id": null
+}
+```
+
+## User Auto-Creation
+
+When **auto_create_users** is enabled:
+
+1. User logs in via OIDC
+2. Listmonk checks if an account exists (matched by email)
+3. If no account exists, listmonk creates one automatically
+4. The new account is assigned the configured default roles
+
+<Note>
+  The user's email from the OIDC provider is used as the unique identifier. Ensure your OIDC provider includes email in the claims.
+</Note>
+
+<Warning>
+  If auto_create_users is enabled, you MUST configure a default_user_role_id. Users cannot be created without a role.
+</Warning>
+
+## Keycloak Configuration
+
+### 1. Create Keycloak Client
+
+In the Keycloak admin console:
+
+**General Settings:**
+- Client type: `OpenID Connect`
+- Client ID: `listmonk` (or your preferred name)
+- Name: Optional (e.g., "listmonk SSO")
+
+**Capability Config:**
+- Client authentication: **On**
+- Authorization: **On**
+- Standard Flow: **On**
+- Direct Access grants: **On**
+
+**Login Settings:**
+- Root URL: `https://listmonk.yoursite.com/auth/oidc`
+- Valid redirect URIs: `https://listmonk.yoursite.com/auth/oidc`
+- Valid post logout redirect URIs: `*`
+
+<Note>
+  Copy the **Redirect URL for OAuth provider** from listmonk Settings → Security → OIDC to use in your Keycloak configuration.
+</Note>
+
+### 2. Get Client Secret
+
+After creating the client:
+1. Go to the client's **Credentials** tab
+2. Copy the **Client Secret**
+
+### 3. Configure Listmonk
+
+In **Settings → Security → OIDC**:
+
+```json
+{
+  "enabled": true,
+  "provider_url": "https://keycloak.yoursite.com/realms/myrealm",
+  "provider_name": "Login with OrgName",
+  "client_id": "listmonk",
+  "client_secret": "your-client-secret-here",
+  "auto_create_users": true,
+  "default_user_role_id": 2
+}
+```
+
+<Note>
+  The provider URL format may vary across Keycloak versions. For v26.3+, use: `https://keycloak.yoursite.com/realms/{realm}`
+</Note>
+
+## Authentik Configuration
+
+### 1. Create OIDC Provider
+
+In Authentik admin interface:
+
+**Provider Settings:**
+- Name: `listmonk`
+- Signing Key: `authentik Self-signed Certificate`
+- Client Type: `Confidential`
+- Client ID: `listmonk`
+- Redirect URIs: `https://listmonk.yoursite.com/auth/oidc`
+
+After creation, copy the **Client Secret**.
+
+### 2. Create Application
+
+**Application Settings:**
+- Name: `listmonk`
+- Slug: `listmonk` (used in redirect URL)
+- Provider: Select the OIDC provider created above
+
+### 3. Configure Listmonk
+
+```json
+{
+  "enabled": true,
+  "provider_url": "https://authentik.yoursite.com/application/o/listmonk/",
+  "provider_name": "Login with OrgName",
+  "client_id": "listmonk",
+  "client_secret": "your-client-secret-here",
+  "auto_create_users": true,
+  "default_user_role_id": 2
+}
+```
+
+<Note>
+  Replace `listmonk` in the provider URL with your application's slug.
+</Note>
+
+## Google Workspace Configuration
+
+### 1. Create Google Cloud Project
+
+In Google Cloud Console:
+
+**Project Settings:**
+- Project name: `Listmonk`
+
+**OAuth Consent Screen:**
+- App name: `Listmonk` (visible to users)
+- Authorized domains: `listmonk.example.com`
+
+### 2. Create OAuth Client
+
+Go to **Credentials** → **Create Credentials** → **OAuth client ID**:
+
+**Application Settings:**
+- Application type: `Web application`
+- Name: `listmonk`
+- Authorized JavaScript origins: `https://listmonk.example.com`
+- Authorized redirect URIs: `https://listmonk.example.com/auth/oidc`
+
+Copy the **Client ID** and **Client Secret**.
+
+### 3. Configure Listmonk
+
+```json
+{
+  "enabled": true,
+  "provider_url": "https://accounts.google.com",
+  "provider_name": "Login with Google",
+  "client_id": "123456789.apps.googleusercontent.com",
+  "client_secret": "your-client-secret-here",
+  "auto_create_users": true,
+  "default_user_role_id": 2
+}
+```
+
+<Note>
+  For Google, you can select "Google" from the provider dropdown in listmonk settings to auto-fill the provider URL.
+</Note>
+
+## Common OIDC Providers
+
+### Okta
+
+```json
+{
+  "provider_url": "https://yourorg.okta.com/oauth2/default",
+  "provider_name": "Login with Okta",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret"
+}
+```
+
+### Azure AD / Microsoft Entra ID
+
+```json
+{
+  "provider_url": "https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0",
+  "provider_name": "Login with Microsoft",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret"
+}
+```
+
+### Auth0
+
+```json
+{
+  "provider_url": "https://yourorg.auth0.com",
+  "provider_name": "Login with Auth0",
+  "client_id": "your-client-id",
+  "client_secret": "your-client-secret"
+}
+```
+
+## Redirect URL
+
+All OIDC providers need the redirect URL configured. Find it in:
+
+**Settings → Security → OIDC → Redirect URL for OAuth provider**
+
+Format: `https://listmonk.yoursite.com/auth/oidc`
+
+<Warning>
+  The redirect URL must exactly match what's configured in your OIDC provider, including protocol (https) and path.
+</Warning>
+
+## Login Flow
+
+1. User visits listmonk login page
+2. Clicks the OIDC provider button (e.g., "Login with OrgName")
+3. Redirected to OIDC provider login
+4. User authenticates with provider
+5. Provider redirects back to listmonk with authorization code
+6. Listmonk exchanges code for tokens
+7. Listmonk validates tokens and extracts user info
+8. If auto-create enabled and user doesn't exist, creates account
+9. User is logged into listmonk
+
+## Security Considerations
+
+### Email Verification
+
+OIDC providers may not verify emails. Ensure your provider:
+- Validates email addresses
+- Includes `email_verified` claim
+- Enforces email confirmation
+
+### Role Assignment
+
+<Warning>
+  Auto-created users receive the default role specified in settings. Review this role's permissions carefully.
+</Warning>
+
+For security:
+- Assign a restrictive default role
+- Manually upgrade permissions for trusted users
+- Consider disabling auto_create_users for sensitive instances
+
+### Client Secrets
+
+Protect client secrets:
+- Store securely in listmonk settings
+- Rotate periodically
+- Use environment variables in production
+- Never commit to version control
+
+## Troubleshooting
+
+### Login button not appearing
+
+- Ensure OIDC is enabled in settings
+- Check that provider_name is set
+- Restart listmonk after configuration changes
+
+### "Invalid redirect URI" error
+
+- Verify redirect URI in provider matches exactly: `https://listmonk.yoursite.com/auth/oidc`
+- Check for trailing slashes or protocol mismatches
+- Ensure provider_url is correct
+
+### User creation fails
+
+- Verify auto_create_users is enabled
+- Check default_user_role_id is set and valid
+- Ensure OIDC provider includes email in claims
+- Check listmonk logs for specific errors
+
+### "Client authentication failed"
+
+- Verify client_id matches provider configuration
+- Check client_secret is correct and not expired
+- Ensure client type is set to "Confidential" in provider
+
+### Users can't access features after login
+
+- Check the assigned default_user_role_id has appropriate permissions
+- Assign list roles if per-list access is needed
+- Verify user status is "enabled"
+
+## Testing OIDC Configuration
+
+1. **Set up test role**: Create a restricted role for testing
+2. **Enable auto-create**: Turn on auto_create_users with test role
+3. **Test login**: Use a test account from your OIDC provider
+4. **Verify account creation**: Check that user appears in Admin → Users
+5. **Test permissions**: Verify user can only access permitted features
+6. **Test logout**: Ensure logout works correctly
+7. **Production role**: Switch to production role after testing
+
+## Mixing Authentication Methods
+
+Listmonk supports multiple authentication methods simultaneously:
+
+- Username/password login
+- OIDC SSO
+- API token authentication
+
+Users can be configured with:
+- Password login only
+- OIDC login only
+- Both password and OIDC
+
+<Note>
+  API users cannot use OIDC authentication. They always use token-based authentication.
+</Note>
+
+## Disabling Password Login
+
+For OIDC-only authentication:
+
+1. Enable OIDC with auto_create_users
+2. Create users without password_login enabled
+3. Users can only log in via OIDC
+
+<Warning>
+  Keep at least one Super Admin account with password login enabled to prevent lockout if OIDC fails.
+</Warning>

@@ -1,0 +1,449 @@
+---
+title: Lists API
+description: API endpoints for managing mailing lists in Listmonk
+---
+
+Manage mailing lists including creating, updating, querying, and deleting lists. Lists can be public or private with single or double opt-in.
+
+## Get Lists
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/lists</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve all lists with optional filtering and pagination.
+
+<Note>Lists with `status: archived` are hidden from list selectors in campaigns, public subscription forms, and roles by default. They can only be viewed by filtering with `status=archived` or by viewing all lists without a status filter.</Note>
+
+### Query Parameters
+
+<ParamField query="query" type="string">
+  String for list name search.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Status to filter lists. Options: `active`, `archived`. Defaults to showing all lists if not specified.
+</ParamField>
+
+<ParamField query="minimal" type="boolean">
+  If true, returns lists without subscriber counts (faster). Defaults to false.
+</ParamField>
+
+<ParamField query="tag" type="string[]">
+  Tags to filter lists. Repeat in the query for multiple values.
+</ParamField>
+
+<ParamField query="order_by" type="string">
+  Sort field. Options: `name`, `status`, `created_at`, `updated_at`.
+</ParamField>
+
+<ParamField query="order" type="string">
+  Sorting order. Options: `ASC`, `DESC`.
+</ParamField>
+
+<ParamField query="page" type="number">
+  Page number for pagination.
+</ParamField>
+
+<ParamField query="per_page" type="number">
+  Results per page. Set to 'all' to return all results.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <ResponseField name="results" type="array">
+    Array of list objects.
+    <ResponseField name="id" type="number">
+      List's unique ID.
+    </ResponseField>
+    <ResponseField name="uuid" type="string">
+      List's UUID.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      List name.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      List type: `public`, `private`.
+    </ResponseField>
+    <ResponseField name="optin" type="string">
+      Opt-in type: `single`, `double`.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      List status: `active`, `archived`.
+    </ResponseField>
+    <ResponseField name="tags" type="string[]">
+      Tags associated with the list.
+    </ResponseField>
+    <ResponseField name="subscriber_count" type="number">
+      Number of subscribers in the list.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      Timestamp when list was created.
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      Timestamp when list was last updated.
+    </ResponseField>
+  </ResponseField>
+  <ResponseField name="total" type="number">
+    Total number of lists.
+  </ResponseField>
+  <ResponseField name="page" type="number">
+    Current page number.
+  </ResponseField>
+  <ResponseField name="per_page" type="number">
+    Results per page.
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+```bash Get All Lists
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?page=1&per_page=100'
+```
+
+```bash Get Active Lists
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?status=active&per_page=100'
+```
+
+```bash Get Archived Lists
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists?status=archived&minimal=true&per_page=all'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "results": [
+            {
+                "id": 1,
+                "created_at": "2020-02-10T23:07:16.194843+01:00",
+                "updated_at": "2020-03-06T22:32:01.118327+01:00",
+                "uuid": "ce13e971-c2ed-4069-bd0c-240e9a9f56f9",
+                "name": "Default list",
+                "type": "public",
+                "optin": "double",
+                "status": "active",
+                "tags": ["test"],
+                "subscriber_count": 2
+            },
+            {
+                "id": 2,
+                "created_at": "2020-03-04T21:12:09.555013+01:00",
+                "updated_at": "2020-03-06T22:34:46.405031+01:00",
+                "uuid": "f20a2308-dfb5-4420-a56d-ecf0618a102d",
+                "name": "get",
+                "type": "private",
+                "optin": "single",
+                "status": "active",
+                "tags": [],
+                "subscriber_count": 0
+            }
+        ],
+        "total": 5,
+        "per_page": 20,
+        "page": 1
+    }
+}
+```
+</ResponseExample>
+
+## Get Public Lists
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/public/lists</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve public lists with name and UUID to submit a subscription. This is an unauthenticated endpoint to enable scripting for subscription forms.
+
+<Note>This endpoint only returns lists with `type: public` and `status: active`. Archived lists are never shown on public subscription forms.</Note>
+
+<RequestExample>
+```bash cURL
+curl -X GET 'http://localhost:9000/api/public/lists'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+[
+  {
+    "uuid": "55e243af-80c6-4169-8d7f-bc571e0269e9",
+    "name": "Opt-in list"
+  }
+]
+```
+</ResponseExample>
+
+## Get List by ID
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/lists/{list_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve a specific list.
+
+### Path Parameters
+
+<ParamField path="list_id" type="number" required>
+  ID of the list to retrieve.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/lists/5'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 5,
+        "created_at": "2020-03-07T06:31:06.072483+01:00",
+        "updated_at": "2020-03-07T06:31:06.072483+01:00",
+        "uuid": "1bb246ab-7417-4cef-bddc-8fc8fc941d3a",
+        "name": "Test list",
+        "type": "public",
+        "optin": "double",
+        "status": "active",
+        "tags": [],
+        "subscriber_count": 0
+    }
+}
+```
+</ResponseExample>
+
+## Create List
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/lists</path>
+  </endpoint>
+</api-endpoint>
+
+Create a new list.
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Name of the new list.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Type of list. Options: `private`, `public`.
+</ParamField>
+
+<ParamField body="optin" type="string" required>
+  Opt-in type. Options: `single`, `double`.
+</ParamField>
+
+<ParamField body="status" type="string">
+  Status of the list. Options: `active`, `archived`. Defaults to `active`.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Associated tags for a list.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the new list.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/lists' \
+  -H 'Content-Type: application/json' \
+  --data '{
+    "name": "Test list",
+    "type": "public",
+    "optin": "single",
+    "status": "active",
+    "tags": ["newsletter"],
+    "description": "This is a test list"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 5,
+        "created_at": "2020-03-07T06:31:06.072483+01:00",
+        "updated_at": "2020-03-07T06:31:06.072483+01:00",
+        "uuid": "1bb246ab-7417-4cef-bddc-8fc8fc941d3a",
+        "name": "Test list",
+        "type": "public",
+        "optin": "single",
+        "status": "active",
+        "tags": [],
+        "subscriber_count": 0,
+        "description": "This is a test list"
+    }
+}
+```
+</ResponseExample>
+
+## Update List
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/lists/{list_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Update a list.
+
+### Path Parameters
+
+<ParamField path="list_id" type="number" required>
+  ID of the list to update.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="name" type="string">
+  New name for the list.
+</ParamField>
+
+<ParamField body="type" type="string">
+  Type of list. Options: `private`, `public`.
+</ParamField>
+
+<ParamField body="optin" type="string">
+  Opt-in type. Options: `single`, `double`.
+</ParamField>
+
+<ParamField body="status" type="string">
+  Status of the list. Options: `active`, `archived`.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Associated tags for the list.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Description of the list.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X PUT 'http://localhost:9000/api/lists/5' \
+  --form 'name=modified test list' \
+  --form 'type=private'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 5,
+        "created_at": "2020-03-07T06:31:06.072483+01:00",
+        "updated_at": "2020-03-07T06:52:15.208075+01:00",
+        "uuid": "1bb246ab-7417-4cef-bddc-8fc8fc941d3a",
+        "name": "modified test list",
+        "type": "private",
+        "optin": "single",
+        "status": "active",
+        "tags": [],
+        "subscriber_count": 0,
+        "description": "This is a test list"
+    }
+}
+```
+</ResponseExample>
+
+## Delete List
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/lists/{list_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Delete a specific list.
+
+### Path Parameters
+
+<ParamField path="list_id" type="number" required>
+  ID of the list to delete.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u 'api_username:access_token' -X DELETE 'http://localhost:9000/api/lists/1'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Delete Multiple Lists
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/lists</path>
+  </endpoint>
+</api-endpoint>
+
+Delete multiple lists by IDs or by a search query.
+
+<Note>Users can only delete lists they have `manage` permission for. Any lists in the query that the user doesn't have permission to manage is ignored.</Note>
+
+### Query Parameters
+
+<ParamField query="id" type="number[]">
+  Required if `query` not provided. One or more list IDs to delete.
+</ParamField>
+
+<ParamField query="query" type="string">
+  Required if `id` not provided. Search query to filter lists for deletion (same as the GET query).
+</ParamField>
+
+<RequestExample>
+```bash Delete by IDs
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/lists?id=10&id=11&id=12'
+```
+
+```bash Delete by Query
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/lists?query=test%20list'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `400 Bad Request` - Invalid parameters
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - List not found
+- `500 Internal Server Error` - Server error

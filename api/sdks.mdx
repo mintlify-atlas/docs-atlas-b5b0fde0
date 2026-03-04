@@ -1,0 +1,262 @@
+---
+title: SDKs and Client Libraries
+description: Community-maintained SDKs and integrations for Listmonk API
+---
+
+A comprehensive list of third-party client libraries, SDKs, and integrations that have been written for the Listmonk API.
+
+<Note>
+The list below is community-sourced. These libraries have not been verified and are not officially supported by the Listmonk project. Use at your own discretion.
+</Note>
+
+## Integrations
+
+### WordPress and WooCommerce
+
+**[WordPress - WooCommerce Plugin](https://github.com/post-duif/integration-listmonk-wordpress-plugin)**
+
+Integration plugin for WordPress and WooCommerce that connects your store with Listmonk.
+
+### CMS Integrations
+
+**[auto-newsletter-listmonk](https://github.com/chaddyc/auto-newsletter-listmonk)**
+
+Ghost CMS integration for automatically sending newsletters via Listmonk.
+
+**[listmonk-newsletter](https://github.com/iloveitaly/listmonk-newsletter)**
+
+RSS to Listmonk integration for creating email newsletters from RSS feeds.
+
+### Framework Integrations
+
+**[frappe_listmonk](https://github.com/anandology/frappe_listmonk)**
+
+Frappe framework integration for Listmonk, enabling newsletter functionality in Frappe apps.
+
+### Infrastructure
+
+**[terraform-provider-listmonk](https://github.com/Muravlev/terraform-provider-listmonk)**
+
+Manage Listmonk templates and resources using Terraform infrastructure as code.
+
+**[listmonk-mcp](https://github.com/rhnvrm/listmonk-mcp)**
+
+MCP (Model Context Protocol) server for Claude integration, enabling AI-powered interactions with Listmonk.
+
+### Automation
+
+**[N8N Nodes](https://github.com/wiesinghilker/n8n-nodes-listmonk)**
+
+Adds Listmonk nodes for N8N automation workflows.
+
+## Python SDKs
+
+**[listmonk](https://github.com/mikeckennedy/listmonk)**
+
+Python API client for Listmonk.
+
+```python
+from listmonk import ListmonkAPI
+
+client = ListmonkAPI("http://localhost:9000", "username", "password")
+subscribers = client.get_subscribers()
+```
+
+**[listmonk-api](https://github.com/Knuckles-Team/listmonk-api)**
+
+Another Python API client with comprehensive endpoint coverage.
+
+```python
+from listmonk_api import Listmonk
+
+api = Listmonk(url="http://localhost:9000", username="user", password="pass")
+api.create_subscriber(email="user@example.com", name="User")
+```
+
+## PHP SDKs
+
+**[listmonk-php-client](https://github.com/arunnabraham/listmonk-php-client)**
+
+PHP API client for Listmonk.
+
+```php
+use Listmonk\Client;
+
+$client = new Client('http://localhost:9000', 'username', 'password');
+$subscribers = $client->subscribers()->getAll();
+```
+
+**[php-listmonk](https://github.com/junisan/php-listmonk)**
+
+Alternative PHP client library for the Listmonk API.
+
+## JavaScript/TypeScript SDKs
+
+**[listmonk-nodejs-api](https://github.com/mihairaulea/listmonk-nodejs-api)**
+
+NodeJS API client for Listmonk.
+
+```javascript
+const Listmonk = require('listmonk-nodejs-api');
+
+const client = new Listmonk('http://localhost:9000', 'username', 'password');
+const subscribers = await client.getSubscribers();
+```
+
+**[@maloma/listmonk](https://codeberg.org/maloma/listmonk-sdk)**
+
+NodeJS/Bun TypeScript SDK with full type definitions.
+
+```typescript
+import { ListmonkClient } from '@maloma/listmonk';
+
+const client = new ListmonkClient({
+  baseUrl: 'http://localhost:9000',
+  username: 'user',
+  password: 'pass'
+});
+
+const subscribers = await client.subscribers.list();
+```
+
+### Framework-Specific
+
+**[listmonk-laravel](https://github.com/theafolayan/listmonk-laravel)**
+
+Laravel package for Listmonk integration.
+
+```php
+use Listmonk\Facades\Listmonk;
+
+Listmonk::createSubscriber([
+    'email' => 'user@example.com',
+    'name' => 'John Doe'
+]);
+```
+
+**[nuxt-listmonk](https://github.com/roncallyt/nuxt-listmonk)**
+
+Listmonk module for Nuxt.js applications.
+
+```javascript
+export default {
+  modules: ['nuxt-listmonk'],
+  listmonk: {
+    baseURL: 'http://localhost:9000',
+    username: 'user',
+    password: 'pass'
+  }
+}
+```
+
+## Go SDK
+
+**[go-listmonk](https://github.com/EzeXchange-API/go-listmonk)**
+
+Go API client library for Listmonk.
+
+```go
+import "github.com/EzeXchange-API/go-listmonk"
+
+client := listmonk.NewClient("http://localhost:9000", "username", "password")
+subscribers, err := client.GetSubscribers()
+```
+
+## Java/Kotlin SDK
+
+**[listmonk-japi](https://codeberg.org/hlassiege/listmonk-japi)**
+
+Listmonk client for Java and Kotlin.
+
+```kotlin
+val client = ListmonkClient(
+    baseUrl = "http://localhost:9000",
+    username = "user",
+    password = "pass"
+)
+
+val subscribers = client.subscribers.getAll()
+```
+
+## Crystal SDK
+
+**[listmonk-crystal](https://github.com/russ/listmonk-crystal)**
+
+Crystal language API client for Listmonk.
+
+```crystal
+require "listmonk"
+
+client = Listmonk::Client.new("http://localhost:9000", "username", "password")
+subscribers = client.subscribers.list
+```
+
+## API Authentication
+
+All SDKs use HTTP Basic Authentication. Configure your client with:
+
+```bash
+Username: admin (or your configured username)
+Password: your_api_password
+```
+
+## Contributing Your SDK
+
+If you've created an SDK or integration for Listmonk:
+
+1. Test thoroughly against the latest Listmonk version
+2. Include documentation and examples
+3. Add your project to the [Listmonk documentation repository](https://github.com/knadh/listmonk)
+4. Share in the [Listmonk community](https://github.com/knadh/listmonk/discussions)
+
+## SDK Requirements
+
+When building an SDK, ensure it supports:
+
+### Core Endpoints
+- Subscribers management (CRUD)
+- Lists management (CRUD)
+- Campaigns management (CRUD)
+- Templates management (CRUD)
+- Transactional emails
+
+### Authentication
+- HTTP Basic Authentication
+- Proper error handling for 401/403
+
+### Best Practices
+- Proper error handling and reporting
+- Type safety (where applicable)
+- Comprehensive documentation
+- Example code
+- Unit tests
+
+### Nice to Have
+- Async/await support
+- Retry logic for failed requests
+- Rate limiting awareness
+- Webhook handling
+- Batch operations
+
+## API Documentation
+
+For implementing your own SDK, refer to:
+
+- [Subscribers API](/api/subscribers)
+- [Lists API](/api/lists)
+- [Campaigns API](/api/campaigns)
+- [Templates API](/api/templates)
+- [Media API](/api/media)
+- [Bounces API](/api/bounces)
+- [Transactional API](/api/transactional)
+- [Import API](/api/import)
+
+## Support
+
+For SDK-specific issues:
+- Contact the SDK maintainer directly
+- Check the SDK repository for issues and documentation
+
+For Listmonk API issues:
+- Visit the [Listmonk GitHub repository](https://github.com/knadh/listmonk)
+- Join the [Listmonk discussions](https://github.com/knadh/listmonk/discussions)

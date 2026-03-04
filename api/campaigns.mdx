@@ -1,0 +1,691 @@
+---
+title: Campaigns API
+description: API endpoints for managing email campaigns in Listmonk
+---
+
+Manage email campaigns including creating, updating, scheduling, and tracking campaign performance. Campaigns can be regular newsletters or opt-in confirmation campaigns.
+
+## Get Campaigns
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/campaigns</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve all campaigns with optional filtering and pagination.
+
+### Query Parameters
+
+<ParamField query="order" type="string">
+  Sorting order: `ASC` for ascending, `DESC` for descending.
+</ParamField>
+
+<ParamField query="order_by" type="string">
+  Result sorting field. Options: `name`, `status`, `created_at`, `updated_at`.
+</ParamField>
+
+<ParamField query="query" type="string">
+  String to filter by campaign name and subject (fulltext and substring).
+</ParamField>
+
+<ParamField query="status" type="string[]">
+  Status to filter campaigns. Repeat in the query for multiple values.
+</ParamField>
+
+<ParamField query="tags" type="string[]">
+  Tags to filter campaigns. Repeat in the query for multiple values.
+</ParamField>
+
+<ParamField query="page" type="number">
+  Page number for paginated results.
+</ParamField>
+
+<ParamField query="per_page" type="number">
+  Results per page. Set as 'all' for all results.
+</ParamField>
+
+<ParamField query="no_body" type="boolean">
+  When set to true, returns response without body content.
+</ParamField>
+
+### Response
+
+<ResponseField name="data" type="object">
+  <ResponseField name="results" type="array">
+    Array of campaign objects.
+    <ResponseField name="id" type="number">
+      Campaign's unique ID.
+    </ResponseField>
+    <ResponseField name="uuid" type="string">
+      Campaign's UUID.
+    </ResponseField>
+    <ResponseField name="name" type="string">
+      Campaign name.
+    </ResponseField>
+    <ResponseField name="subject" type="string">
+      Email subject line.
+    </ResponseField>
+    <ResponseField name="from_email" type="string">
+      Sender email address.
+    </ResponseField>
+    <ResponseField name="body" type="string">
+      Campaign body content.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      Campaign type: `regular`, `optin`.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Campaign status: `draft`, `scheduled`, `running`, `paused`, `cancelled`, `finished`.
+    </ResponseField>
+    <ResponseField name="content_type" type="string">
+      Content type: `richtext`, `html`, `markdown`, `plain`, `visual`.
+    </ResponseField>
+    <ResponseField name="lists" type="array">
+      Lists the campaign is sent to.
+    </ResponseField>
+    <ResponseField name="views" type="number">
+      Number of views.
+    </ResponseField>
+    <ResponseField name="clicks" type="number">
+      Number of clicks.
+    </ResponseField>
+    <ResponseField name="sent" type="number">
+      Number of emails sent.
+    </ResponseField>
+    <ResponseField name="to_send" type="number">
+      Number of emails to send.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      Timestamp when campaign was created.
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      Timestamp when campaign was last updated.
+    </ResponseField>
+  </ResponseField>
+  <ResponseField name="total" type="number">
+    Total number of campaigns.
+  </ResponseField>
+  <ResponseField name="page" type="number">
+    Current page number.
+  </ResponseField>
+  <ResponseField name="per_page" type="number">
+    Results per page.
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns?page=1&per_page=100'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "results": [
+            {
+                "id": 1,
+                "created_at": "2020-03-14T17:36:41.29451+01:00",
+                "updated_at": "2020-03-14T17:36:41.29451+01:00",
+                "views": 0,
+                "clicks": 0,
+                "lists": [
+                    {
+                        "id": 1,
+                        "name": "Default list"
+                    }
+                ],
+                "started_at": null,
+                "to_send": 0,
+                "sent": 0,
+                "uuid": "57702beb-6fae-4355-a324-c2fd5b59a549",
+                "type": "regular",
+                "name": "Test campaign",
+                "subject": "Welcome to listmonk",
+                "from_email": "No Reply <noreply@yoursite.com>",
+                "body": "<h3>Hi {{ .Subscriber.FirstName }}!</h3>",
+                "send_at": "2020-03-15T17:36:41.293233+01:00",
+                "status": "draft",
+                "content_type": "richtext",
+                "tags": ["test-campaign"],
+                "template_id": 1,
+                "messenger": "email"
+            }
+        ],
+        "query": "",
+        "total": 1,
+        "per_page": 20,
+        "page": 1
+    }
+}
+```
+</ResponseExample>
+
+## Get Campaign by ID
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/campaigns/{campaign_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve a specific campaign.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="no_body" type="boolean">
+  When set to true, returns response without body content.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/1'
+```
+</RequestExample>
+
+## Preview Campaign
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/campaigns/{campaign_id}/preview</path>
+  </endpoint>
+</api-endpoint>
+
+Preview a specific campaign with rendered content.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to preview.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/1/preview'
+```
+</RequestExample>
+
+<ResponseExample>
+```html
+<h3>Hi John!</h3>
+This is a test e-mail campaign. Your second name is Doe and you are from Bengaluru.
+```
+</ResponseExample>
+
+## Get Campaign Stats
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/campaigns/running/stats</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve stats of specified campaigns.
+
+### Query Parameters
+
+<ParamField query="campaign_id" type="number" required>
+  Campaign IDs to get stats for.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/running/stats?campaign_id=1'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": []
+}
+```
+</ResponseExample>
+
+## Get Campaign Analytics
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/campaigns/analytics/{type}</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve analytics data for campaigns.
+
+### Path Parameters
+
+<ParamField path="type" type="string" required>
+  Analytics type: `views`, `links`, `clicks`, `bounces`.
+</ParamField>
+
+### Query Parameters
+
+<ParamField query="id" type="number[]" required>
+  Campaign IDs to get stats for.
+</ParamField>
+
+<ParamField query="from" type="string" required>
+  Start value of date range (YYYY-MM-DD).
+</ParamField>
+
+<ParamField query="to" type="string" required>
+  End value of date range (YYYY-MM-DD).
+</ParamField>
+
+<RequestExample>
+```bash Views Analytics
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/analytics/views?id=1&from=2024-08-04&to=2024-08-12'
+```
+
+```bash Links Analytics
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/campaigns/analytics/links?id=1&from=2024-08-04&to=2024-08-12'
+```
+</RequestExample>
+
+<ResponseExample>
+```json Views
+{
+  "data": [
+    {
+      "campaign_id": 1,
+      "count": 10,
+      "timestamp": "2024-08-04T00:00:00Z"
+    },
+    {
+      "campaign_id": 1,
+      "count": 14,
+      "timestamp": "2024-08-08T00:00:00Z"
+    }
+  ]
+}
+```
+
+```json Links
+{
+  "data": [
+    {
+      "url": "https://example.com",
+      "count": 294
+    },
+    {
+      "url": "https://another.com",
+      "count": 278
+    }
+  ]
+}
+```
+</ResponseExample>
+
+## Create Campaign
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/campaigns</path>
+  </endpoint>
+</api-endpoint>
+
+Create a new campaign.
+
+### Body Parameters
+
+<ParamField body="name" type="string" required>
+  Campaign name.
+</ParamField>
+
+<ParamField body="subject" type="string" required>
+  Campaign email subject.
+</ParamField>
+
+<ParamField body="lists" type="number[]" required>
+  List IDs to send campaign to.
+</ParamField>
+
+<ParamField body="from_email" type="string">
+  'From' email in campaign emails. Defaults to value from settings if not provided.
+</ParamField>
+
+<ParamField body="type" type="string" required>
+  Campaign type: `regular` or `optin`.
+</ParamField>
+
+<ParamField body="content_type" type="string" required>
+  Content type: `richtext`, `html`, `markdown`, `plain`, `visual`.
+</ParamField>
+
+<ParamField body="body" type="string" required>
+  Content body of campaign.
+</ParamField>
+
+<ParamField body="body_source" type="string">
+  If content_type is `visual`, the JSON block source of the body.
+</ParamField>
+
+<ParamField body="altbody" type="string">
+  Alternate plain text body for HTML (and richtext) emails.
+</ParamField>
+
+<ParamField body="send_at" type="string">
+  Timestamp to schedule campaign. Format: 'YYYY-MM-DDTHH:MM:SSZ'.
+</ParamField>
+
+<ParamField body="messenger" type="string">
+  'email' or a custom messenger defined in settings. Defaults to 'email' if not provided.
+</ParamField>
+
+<ParamField body="template_id" type="number">
+  Template ID to use. Defaults to default template if not provided.
+</ParamField>
+
+<ParamField body="tags" type="string[]">
+  Tags to mark campaign.
+</ParamField>
+
+<ParamField body="headers" type="object">
+  Key-value pairs to send as SMTP headers.
+</ParamField>
+
+<ParamField body="attribs" type="object">
+  Optional JSON object attributes that can be used in the campaign message template.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" 'http://localhost:9000/api/campaigns' \
+  -X POST \
+  -H 'Content-Type: application/json;charset=utf-8' \
+  --data-raw '{
+    "name":"Test campaign",
+    "subject":"Hello, world",
+    "lists":[1],
+    "from_email":"listmonk <noreply@listmonk.yoursite.com>",
+    "content_type":"richtext",
+    "messenger":"email",
+    "type":"regular",
+    "tags":["test"],
+    "template_id":1
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 1,
+        "created_at": "2021-12-27T11:50:23.333485Z",
+        "updated_at": "2021-12-27T11:50:23.333485Z",
+        "views": 0,
+        "clicks": 0,
+        "bounces": 0,
+        "lists": [{
+            "id": 1,
+            "name": "Default list"
+        }],
+        "started_at": null,
+        "to_send": 1,
+        "sent": 0,
+        "uuid": "90c889cc-3728-4064-bbcb-5c1c446633b3",
+        "type": "regular",
+        "name": "Test campaign",
+        "subject": "Hello, world",
+        "from_email": "listmonk <noreply@listmonk.yoursite.com>",
+        "body": "",
+        "status": "draft",
+        "content_type": "richtext",
+        "tags": ["test"],
+        "template_id": 1,
+        "messenger": "email"
+    }
+}
+```
+</ResponseExample>
+
+## Test Campaign
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/campaigns/{campaign_id}/test</path>
+  </endpoint>
+</api-endpoint>
+
+Test campaign with arbitrary subscribers.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to test.
+</ParamField>
+
+### Body Parameters
+
+Use the same parameters as Create Campaign, plus:
+
+<ParamField body="subscribers" type="string[]" required>
+  List of subscriber e-mails to send the test message to.
+</ParamField>
+
+## Update Campaign
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/campaigns/{campaign_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Update a specific campaign.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to update.
+</ParamField>
+
+<Note>Refer to parameters from the Create Campaign endpoint.</Note>
+
+## Update Campaign Status
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/campaigns/{campaign_id}/status</path>
+  </endpoint>
+</api-endpoint>
+
+Change status of a campaign.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to change status.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="status" type="string" required>
+  New status for campaign: `scheduled`, `running`, `paused`, `cancelled`.
+</ParamField>
+
+<Note>
+Status transition rules:
+- Only 'scheduled' campaigns can change status to 'draft'
+- Only 'draft' campaigns can change status to 'scheduled'
+- Only 'paused' and 'draft' campaigns can start ('running' status)
+- Only 'running' campaigns can change status to 'cancelled' and 'paused'
+</Note>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X PUT 'http://localhost:9000/api/campaigns/1/status' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{"status":"scheduled"}'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 1,
+        "status": "scheduled",
+        "send_at": "2020-03-15T17:36:41.293233+01:00"
+    }
+}
+```
+</ResponseExample>
+
+## Publish to Archive
+
+<api-endpoint>
+  <endpoint>
+    <method>PUT</method>
+    <path>/api/campaigns/{campaign_id}/archive</path>
+  </endpoint>
+</api-endpoint>
+
+Publish campaign to public archive.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to publish to public archive.
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="archive" type="boolean" required>
+  State of the public archive.
+</ParamField>
+
+<ParamField body="archive_template_id" type="number">
+  Archive template id. Defaults to 0.
+</ParamField>
+
+<ParamField body="archive_meta" type="object">
+  Optional metadata to use in campaign message or template.
+</ParamField>
+
+<ParamField body="archive_slug" type="string">
+  Name for page to be used in public archive URL.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X PUT 'http://localhost:9000/api/campaigns/33/archive' \
+  --header 'Content-Type: application/json' \
+  --data-raw '{
+    "archive":true,
+    "archive_template_id":1,
+    "archive_meta":{},
+    "archive_slug":"my-newsletter-old-edition"
+  }'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "data": {
+    "archive": true,
+    "archive_template_id": 1,
+    "archive_meta": {},
+    "archive_slug": "my-newsletter-old-edition"
+  }
+}
+```
+</ResponseExample>
+
+## Delete Campaign
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/campaigns/{campaign_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Delete a campaign.
+
+### Path Parameters
+
+<ParamField path="campaign_id" type="number" required>
+  Campaign ID to delete.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns/34'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Delete Multiple Campaigns
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/campaigns</path>
+  </endpoint>
+</api-endpoint>
+
+Delete multiple campaigns by IDs or by a search query.
+
+### Query Parameters
+
+<ParamField query="id" type="number[]">
+  Required if `query` not provided. One or more campaign IDs to delete.
+</ParamField>
+
+<ParamField query="query" type="string">
+  Required if `id` not provided. Fulltext search query to filter campaigns for deletion (same as GET query).
+</ParamField>
+
+<RequestExample>
+```bash Delete by IDs
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns?id=10&id=11&id=12'
+```
+
+```bash Delete by Query
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/campaigns?query=test%20campaign'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `400 Bad Request` - Invalid parameters
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - Campaign not found
+- `500 Internal Server Error` - Server error

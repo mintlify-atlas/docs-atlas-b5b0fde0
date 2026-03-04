@@ -1,0 +1,327 @@
+---
+title: Querying and Segmentation
+description: Filter and segment subscribers using powerful SQL-like expressions to query email, name, attributes, and subscription status
+---
+
+Listmonk allows writing **partial PostgreSQL SQL expressions** to query, filter, and segment subscribers. This powerful feature enables precise targeting based on subscriber attributes, subscription status, and engagement.
+
+## Database Fields
+
+These fields from the subscriber database can be queried:
+
+| Field | Description |
+|-------|-------------|
+| `subscribers.uuid` | Randomly generated unique ID of the subscriber |
+| `subscribers.email` | Email address of the subscriber |
+| `subscribers.name` | Name of the subscriber |
+| `subscribers.status` | Status (`enabled`, `disabled`, `blocklisted`) |
+| `subscribers.attribs` | JSON map of arbitrary attributes |
+| `subscribers.created_at` | Timestamp when the subscriber was first added |
+| `subscribers.updated_at` | Timestamp when the subscriber was modified |
+
+## Sample Subscriber Attributes
+
+Consider this example subscriber with JSON attributes:
+
+<CodeGroup>
+```json Subscriber Attributes
+{
+  "city": "Bengaluru",
+  "likes_tea": true,
+  "spoken_languages": ["English", "Malayalam"],
+  "projects": 3,
+  "stack": {
+    "frameworks": ["echo", "go"],
+    "languages": ["go", "python"],
+    "preferred_language": "go"
+  }
+}
+```
+</CodeGroup>
+
+## Query Examples
+
+### Find Subscribers by Email
+
+<CodeGroup>
+```sql Exact Match
+-- Find a specific email address
+subscribers.email = 'some@domain.com'
+```
+
+```sql Pattern Match
+-- Find all emails ending in @domain.com
+subscribers.email LIKE '%@domain.com'
+```
+</CodeGroup>
+
+### Find Subscribers by Name
+
+<CodeGroup>
+```sql Name Pattern
+-- Find all subscribers whose name starts with John
+subscribers.name LIKE 'John%'
+```
+</CodeGroup>
+
+### Multiple Conditions
+
+Combine conditions using `AND` and `OR` operators:
+
+<CodeGroup>
+```sql Combined Query
+-- Find all Johns who have been blocklisted
+subscribers.name LIKE 'John%' AND subscribers.status = 'blocklisted'
+```
+</CodeGroup>
+
+## Querying JSON Attributes
+
+PostgreSQL provides powerful operators for querying JSONB data:
+
+### Text Value Queries
+
+Use the `->>` operator to extract text values:
+
+<CodeGroup>
+```sql Simple Attribute
+-- Find subscribers who live in Bengaluru and have completed more than 3 projects
+-- Note: Cast projects to INT for numerical comparison
+subscribers.attribs->>'city' = 'Bengaluru' AND
+    (subscribers.attribs->>'projects')::INT > 3
+```
+</CodeGroup>
+
+### Boolean Queries
+
+<CodeGroup>
+```sql Boolean Attribute
+-- Find subscribers who like tea
+(subscribers.attribs->>'likes_tea')::BOOLEAN = true
+```
+</CodeGroup>
+
+### Nested Attributes
+
+Use the `->` operator to navigate nested JSON structures:
+
+<CodeGroup>
+```sql Nested JSON
+-- Find blocklisted subscribers who:
+-- - like to drink tea
+-- - can code Python
+-- - prefer coding Go
+subscribers.status = 'blocklisted' AND
+    (subscribers.attribs->>'likes_tea')::BOOLEAN = true AND
+    subscribers.attribs->'stack'->'languages' ? 'python' AND
+    subscribers.attribs->'stack'->>'preferred_language' = 'go'
+```
+</CodeGroup>
+
+### JSON Operators Reference
+
+| Operator | Description | Example |
+|----------|-------------|----------|
+| `->` | Get JSON object field | `attribs->'stack'` |
+| `->>` | Get JSON object field as text | `attribs->>'city'` |
+| `?` | Check if key/element exists | `languages ? 'python'` |
+| `?\|` | Check if any key exists | `languages ?\| array['go', 'rust']` |
+| `?&` | Check if all keys exist | `languages ?& array['go', 'python']` |
+| `@>` | Contains JSON | `attribs @> '{"city":"Bengaluru"}'` |
+
+## Querying by Subscription Status
+
+Filter by how subscribers are subscribed to lists:
+
+<CodeGroup>
+```sql Subscription Status
+-- Find confirmed subscribers
+subscription_status = 'confirmed'
+
+-- Find unconfirmed subscribers
+subscription_status = 'unconfirmed'
+
+-- Find unsubscribed
+subscription_status = 'unsubscribed'
+```
+</CodeGroup>
+
+## Querying Campaign Engagement
+
+### Campaign Views
+
+Find subscribers who viewed specific campaigns:
+
+<CodeGroup>
+```sql Campaign Views
+-- Find all subscribers who viewed campaign ID 123
+EXISTS(
+    SELECT 1 FROM campaign_views 
+    WHERE campaign_views.subscriber_id = subscribers.id 
+    AND campaign_views.campaign_id = 123
+)
+```
+</CodeGroup>
+
+### Multiple Campaigns
+
+<CodeGroup>
+```sql Multiple Campaigns
+-- Find subscribers who viewed either campaign 123 or 456
+EXISTS(
+    SELECT 1 FROM campaign_views 
+    WHERE campaign_views.subscriber_id = subscribers.id 
+    AND campaign_views.campaign_id IN (123, 456)
+)
+```
+</CodeGroup>
+
+## Date-Based Queries
+
+<CodeGroup>
+```sql Recent Subscribers
+-- Find subscribers added in the last 30 days
+subscribers.created_at > NOW() - INTERVAL '30 days'
+```
+
+```sql Date Range
+-- Find subscribers added in 2024
+subscribers.created_at >= '2024-01-01' AND 
+subscribers.created_at < '2025-01-01'
+```
+</CodeGroup>
+
+## Combining Queries
+
+Build complex segments by combining multiple conditions:
+
+<CodeGroup>
+```sql Complex Segmentation
+-- Find active subscribers who:
+-- - Live in Bengaluru
+-- - Have more than 5 projects
+-- - Prefer Go
+-- - Were added in the last year
+subscribers.status = 'enabled' AND
+subscribers.attribs->>'city' = 'Bengaluru' AND
+(subscribers.attribs->>'projects')::INT > 5 AND
+subscribers.attribs->'stack'->>'preferred_language' = 'go' AND
+subscribers.created_at > NOW() - INTERVAL '1 year'
+```
+</CodeGroup>
+
+## Array Queries
+
+Query array fields in JSON attributes:
+
+<CodeGroup>
+```sql Array Contains
+-- Find subscribers who speak Malayalam
+subscribers.attribs->'spoken_languages' ? 'Malayalam'
+```
+
+```sql Array Length
+-- Find subscribers who speak more than 2 languages
+JSON_ARRAY_LENGTH(subscribers.attribs->'spoken_languages') > 2
+```
+</CodeGroup>
+
+## NULL and Missing Attributes
+
+<CodeGroup>
+```sql Check for NULL
+-- Find subscribers without a city attribute
+subscribers.attribs->>'city' IS NULL
+```
+
+```sql Has Attribute
+-- Find subscribers who have a city attribute (even if empty)
+subscribers.attribs ? 'city'
+```
+</CodeGroup>
+
+## SQL Expression API
+
+From the source code, subscriber queries support:
+
+<CodeGroup>
+```go cmd/subscribers.go
+func (a *App) QuerySubscribers(c echo.Context) error {
+    user := auth.GetUser(c)
+
+    // Filter list IDs by permission.
+    listIDs, err := a.filterListQueryByPerm("list_id", c.QueryParams(), user)
+    if err != nil {
+        return err
+    }
+
+    // Does the user have the subscribers:sql_query permission?
+    query := formatSQLExp(c.FormValue("query"))
+    if query != "" {
+        if !user.HasPerm(auth.PermSubscribersSqlQuery) {
+            return echo.NewHTTPError(http.StatusForbidden,
+                a.i18n.Ts("globals.messages.permissionDenied", 
+                         "name", auth.PermSubscribersSqlQuery))
+        }
+    }
+
+    var (
+        searchStr = strings.TrimSpace(c.FormValue("search"))
+        subStatus = c.FormValue("subscription_status")
+        order     = c.FormValue("order")
+        orderBy   = c.FormValue("order_by")
+        pg        = a.pg.NewFromURL(c.Request().URL.Query())
+    )
+
+    // Query subscribers from the DB.
+    res, total, err := a.core.QuerySubscribers(
+        searchStr, query, listIDs, subStatus, order, orderBy, 
+        pg.Offset, pg.Limit
+    )
+    if err != nil {
+        return err
+    }
+
+    return c.JSON(http.StatusOK, okResp{res})
+}
+```
+</CodeGroup>
+
+## Security and Permissions
+
+<Warning>
+SQL query expressions require the `subscribers:sql_query` permission. This is a powerful feature that should only be granted to trusted users.
+</Warning>
+
+The system sanitizes queries by:
+- Trimming whitespace
+- Removing trailing semicolons
+- Restricting to partial expressions (not full SQL statements)
+
+## Advanced JSONB Resources
+
+For more advanced JSONB querying techniques, refer to the [PostgreSQL JSONB documentation](https://www.postgresql.org/docs/current/functions-json.html).
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Targeted Campaigns" icon="bullseye">
+    Create segments for location-based or interest-based campaigns
+  </Card>
+  
+  <Card title="Re-engagement" icon="rotate">
+    Find inactive subscribers based on engagement dates
+  </Card>
+  
+  <Card title="Behavioral Targeting" icon="chart-line">
+    Segment by campaign views and link clicks
+  </Card>
+  
+  <Card title="Data Cleanup" icon="broom">
+    Identify and remove invalid or outdated subscribers
+  </Card>
+</CardGroup>
+
+<Info>
+Queries are executed directly on PostgreSQL, so they benefit from database indexes and can handle millions of subscribers efficiently.
+</Info>

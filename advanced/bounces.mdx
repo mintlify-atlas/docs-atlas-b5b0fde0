@@ -1,0 +1,236 @@
+---
+title: Bounce Processing
+description: Configure and manage email bounce handling with POP3 mailboxes, webhooks, and external service integrations
+---
+
+Bounce processing helps maintain your sender reputation by automatically handling failed email deliveries. Listmonk supports multiple bounce detection methods including POP3 mailbox scanning, webhook APIs, and integrations with major email service providers.
+
+## Enabling Bounce Processing
+
+Enable bounce processing in **Settings → Bounces**. POP3 bounce scanning and APIs become available once enabled.
+
+<Note>
+  Once bounce processing is enabled, configure at least one bounce detection method (POP3 mailbox or webhook) to start tracking bounces.
+</Note>
+
+## Bounce Types
+
+Listmonk classifies bounces into three types:
+
+<ParamField path="soft" type="bounce_type">
+  Temporary delivery failures (e.g., mailbox full, server temporarily unavailable). Classified using 4.x.x SMTP error codes.
+</ParamField>
+
+<ParamField path="hard" type="bounce_type">
+  Permanent delivery failures (e.g., mailbox not found, domain doesn't exist). Classified using 5.x.x SMTP error codes.
+</ParamField>
+
+<ParamField path="complaint" type="bounce_type">
+  Spam complaints reported by recipients through their email client.
+</ParamField>
+
+### Bounce Classification
+
+Listmonk applies heuristics to classify bounces by looking for keywords in the bounced email body:
+- SMTP status codes (4.x.x for soft, 5.x.x for hard)
+- Common strings like "mailbox not found", "user unknown"
+- If no heuristics match, the bounce defaults to **soft**
+
+## POP3 Bounce Mailbox
+
+Configure a dedicated POP3 mailbox to receive bounce emails in **Settings → Bounces**.
+
+### Setup Requirements
+
+Either:
+1. Use the campaign "From" email address with a POP3 mailbox to receive bounces, OR
+2. Configure a dedicated bounce mailbox and set it as the `Return-Path` header
+
+### Adding Return-Path Header
+
+Add the following to **Settings → SMTP → Custom headers**:
+
+```json
+[
+  {"Return-Path": "your-bounce-inbox@site.com"}
+]
+```
+
+<Note>
+  Some mail servers may return bounces to the `Reply-To` address. Add it to header settings if needed.
+</Note>
+
+### POP3 Configuration
+
+In the database schema, bounce mailboxes are configured with:
+
+```sql
+-- From schema.sql settings
+('bounce.mailboxes',
+  '[{"enabled":false, "type": "pop", "host":"pop.yoursite.com","port":995,
+    "auth_protocol":"userpass","username":"username","password":"password",
+    "return_path": "bounce@listmonk.yoursite.com","scan_interval":"15m",
+    "tls_enabled":true,"tls_skip_verify":false}]')
+```
+
+## Webhook API
+
+The bounce webhook API allows recording bounce events through custom scripting by reading mailboxes, databases, or mail server logs.
+
+### Endpoint
+
+```
+POST /webhooks/bounce
+```
+
+### Parameters
+
+<ParamField path="subscriber_uuid" type="string">
+  The UUID of the subscriber. Either this or `email` is required.
+</ParamField>
+
+<ParamField path="email" type="string">
+  The email address of the subscriber. Either this or `subscriber_uuid` is required.
+</ParamField>
+
+<ParamField path="campaign_uuid" type="string">
+  UUID of the campaign for which the bounce happened.
+</ParamField>
+
+<ParamField path="source" type="string" required>
+  A string indicating the source, e.g., `api`, `my_script`, etc.
+</ParamField>
+
+<ParamField path="type" type="string" required>
+  Bounce type: `hard`, `soft`, or `complaint`.
+</ParamField>
+
+<ParamField path="meta" type="string">
+  An optional escaped JSON string with arbitrary metadata about the bounce event.
+</ParamField>
+
+### Example Request
+
+```bash
+curl -u 'api_username:access_token' -X POST 'http://localhost:9000/webhooks/bounce' \
+  -H "Content-Type: application/json" \
+  --data '{
+    "email": "user1@mail.com",
+    "campaign_uuid": "9f86b50d-5711-41c8-ab03-bc91c43d711b",
+    "source": "api",
+    "type": "hard",
+    "meta": "{\"additional\": \"info\"}"
+  }'
+```
+
+## External Service Webhooks
+
+Listmonk supports receiving bounce webhooks from major SMTP providers:
+
+| Provider | Endpoint | Documentation |
+|----------|----------|---------------|
+| Amazon SES | `https://listmonk.yoursite.com/webhooks/service/ses` | See below |
+| Sendgrid / Twilio | `https://listmonk.yoursite.com/webhooks/service/sendgrid` | [Sendgrid Docs](https://docs.sendgrid.com/for-developers/tracking-events/getting-started-event-webhook-security-features) |
+| Postmark | `https://listmonk.yoursite.com/webhooks/service/postmark` | [Postmark Docs](https://postmarkapp.com/developer/webhooks/webhooks-overview) |
+| Forward Email | `https://listmonk.yoursite.com/webhooks/service/forwardemail` | [Forward Email Docs](https://forwardemail.net/en/faq#do-you-support-bounce-webhooks) |
+
+## Amazon SES Configuration
+
+Automatic bounce processing is recommended for maintaining your sender reputation with SES.
+
+### Listmonk Settings
+
+In **Settings → Bounces**, configure:
+
+- **Enable bounce processing**: Enabled
+- **Soft bounces**:
+  - Bounce count: `2`
+  - Action: `None`
+- **Hard bounces**:
+  - Bounce count: `1`
+  - Action: `Blocklist`
+- **Complaints**:
+  - Bounce count: `1`
+  - Action: `Blocklist`
+- **Enable bounce webhooks**: Enabled
+- **Enable SES**: Enabled
+
+### AWS SNS Configuration
+
+1. Go to [AWS Simple Notification Service](https://console.aws.amazon.com/sns/)
+2. Create a new topic:
+   - Type: `Standard`
+   - Name: `ses-bounces`
+3. Create a subscription:
+   - Protocol: `HTTPS`
+   - Endpoint: `https://listmonk.yoursite.com/webhooks/service/ses`
+   - Enable raw message delivery: Unchecked
+4. Wait for listmonk to confirm the subscription (refresh the page)
+5. Go to [AWS Simple Email Service](https://console.aws.amazon.com/ses/)
+6. Click **Identities** → Select your domain → **Notifications** tab
+7. Edit **Feedback notifications**:
+   - Bounce feedback: SNS topic `ses-bounces`, include headers enabled
+   - Complaint feedback: SNS topic `ses-bounces`, include headers enabled
+8. Repeat for any email address identities
+
+### Testing with SES Simulator
+
+Test bounce processing using [SES simulator addresses](https://docs.aws.amazon.com/ses/latest/dg/send-an-email-from-console.html#send-email-simulator):
+
+- Soft bounce: `ooto@simulator.amazonses.com`
+- Hard bounce: `bounce@simulator.amazonses.com`
+- Complaint: `complaint@simulator.amazonses.com`
+
+Add these as subscribers, send campaign previews, and verify the configured action is taken.
+
+## Bounce Actions
+
+Configure actions to take when bounce thresholds are reached:
+
+```json
+{
+  "soft": {"count": 2, "action": "none"},
+  "hard": {"count": 1, "action": "blocklist"},
+  "complaint": {"count": 1, "action": "blocklist"}
+}
+```
+
+<Warning>
+  Setting hard bounce and complaint actions to `blocklist` is recommended to maintain sender reputation.
+</Warning>
+
+## Exporting Bounces
+
+### Via API
+
+```bash
+curl -u 'username:password' 'http://localhost:9000/api/bounces'
+```
+
+### Via Database Query
+
+```sql
+SELECT bounces.created_at,
+    bounces.subscriber_id,
+    subscribers.uuid AS subscriber_uuid,
+    subscribers.email AS email
+FROM bounces
+LEFT JOIN subscribers ON (subscribers.id = bounces.subscriber_id)
+ORDER BY bounces.created_at DESC LIMIT 1000;
+```
+
+## Database Schema
+
+Bounce records are stored in the `bounces` table:
+
+```sql
+CREATE TABLE bounces (
+    id               SERIAL PRIMARY KEY,
+    subscriber_id    INTEGER NOT NULL REFERENCES subscribers(id),
+    campaign_id      INTEGER NULL REFERENCES campaigns(id),
+    type             bounce_type NOT NULL DEFAULT 'hard',
+    source           TEXT NOT NULL DEFAULT '',
+    meta             JSONB NOT NULL DEFAULT '{}',
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```

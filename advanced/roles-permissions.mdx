@@ -1,0 +1,503 @@
+---
+title: Roles and Permissions
+description: Create users with granular access control through user roles, list roles, and fine-grained permissions
+---
+
+Listmonk supports creating system users with granular permissions to various features. Users can log in with username/password or via OIDC (OpenID Connect). Permissions can be grouped into "user roles" (feature-level permissions) and "list roles" (per-list access control).
+
+<Note>
+  Role-based access control is available in listmonk v4.0.0 and later.
+</Note>
+
+## User Types
+
+Listmonk supports two types of user accounts:
+
+<ParamField path="user" type="user_type">
+  Regular users who log in via the admin interface with username/password or OIDC.
+</ParamField>
+
+<ParamField path="api" type="user_type">
+  API users with automatically generated secret tokens for programmatic access.
+</ParamField>
+
+## User Roles
+
+User roles define feature-level permissions across listmonk. Configure user roles in **Admin → Users → User roles**.
+
+### Lists Permissions
+
+<ParamField path="lists:get_all" type="permission">
+  Get details of all lists in the system.
+</ParamField>
+
+<ParamField path="lists:manage_all" type="permission">
+  Create, update, and delete all lists. Overrides per-list permissions.
+</ParamField>
+
+### Subscriber Permissions
+
+<ParamField path="subscribers:get" type="permission">
+  Get individual subscriber details.
+</ParamField>
+
+<ParamField path="subscribers:get_all" type="permission">
+  Get all subscribers and their details.
+</ParamField>
+
+<ParamField path="subscribers:manage" type="permission">
+  Add, update, and delete subscribers.
+</ParamField>
+
+<ParamField path="subscribers:import" type="permission">
+  Import subscribers from external files (CSV, JSON).
+</ParamField>
+
+<ParamField path="subscribers:sql_query" type="permission">
+  Run raw SQL queries on subscriber data. **WARNING**: This allows execution of arbitrary SQL expressions. While read-only, it bypasses list-level permissions and can access all data. See security notes below.
+</ParamField>
+
+<ParamField path="tx:send" type="permission">
+  Send transactional messages to subscribers via the `/api/tx` endpoint.
+</ParamField>
+
+### Campaign Permissions
+
+<ParamField path="campaigns:get" type="permission">
+  Get and view campaigns belonging to permitted lists only.
+</ParamField>
+
+<ParamField path="campaigns:get_all" type="permission">
+  Get and view campaigns across all lists, regardless of list permissions.
+</ParamField>
+
+<ParamField path="campaigns:get_analytics" type="permission">
+  Access campaign performance metrics, views, clicks, and analytics.
+</ParamField>
+
+<ParamField path="campaigns:manage" type="permission">
+  Create, update, and delete campaigns.
+</ParamField>
+
+### Bounce Permissions
+
+<ParamField path="bounces:get" type="permission">
+  Get email bounce records and view bounce statistics.
+</ParamField>
+
+<ParamField path="bounces:manage" type="permission">
+  Process and handle bounced emails, delete bounce records.
+</ParamField>
+
+<ParamField path="webhooks:post_bounce" type="permission">
+  Receive bounce notifications via webhook endpoint.
+</ParamField>
+
+### Media Permissions
+
+<ParamField path="media:get" type="permission">
+  View and download uploaded media files.
+</ParamField>
+
+<ParamField path="media:manage" type="permission">
+  Upload, update, and delete media files.
+</ParamField>
+
+### Template Permissions
+
+<ParamField path="templates:get" type="permission">
+  View email templates.
+</ParamField>
+
+<ParamField path="templates:manage" type="permission">
+  Create, update, and delete email templates.
+</ParamField>
+
+### User Management Permissions
+
+<ParamField path="users:get" type="permission">
+  View system user accounts and their details.
+</ParamField>
+
+<ParamField path="users:manage" type="permission">
+  Create, update, and delete user accounts. **WARNING**: Allows creation of users with any role, including Super Admin. Should only be given to Super Admin accounts.
+</ParamField>
+
+<ParamField path="roles:get" type="permission">
+  View user roles and their permissions.
+</ParamField>
+
+<ParamField path="roles:manage" type="permission">
+  Create and modify user roles and permissions.
+</ParamField>
+
+### Settings Permissions
+
+<ParamField path="settings:get" type="permission">
+  View system settings and configuration.
+</ParamField>
+
+<ParamField path="settings:manage" type="permission">
+  Modify system configuration, SMTP, bounce settings, etc.
+</ParamField>
+
+<ParamField path="settings:maintain" type="permission">
+  Perform system maintenance tasks like database backups, vacuuming.
+</ParamField>
+
+## Complete Permissions Reference
+
+From `permissions.json`, the complete list of available permissions:
+
+```json
+[
+  {
+    "group": "lists",
+    "permissions": ["lists:get_all", "lists:manage_all"]
+  },
+  {
+    "group": "subscribers",
+    "permissions": [
+      "subscribers:get",
+      "subscribers:get_all",
+      "subscribers:manage",
+      "subscribers:import",
+      "subscribers:sql_query",
+      "tx:send"
+    ]
+  },
+  {
+    "group": "campaigns",
+    "permissions": [
+      "campaigns:get",
+      "campaigns:get_all",
+      "campaigns:get_analytics",
+      "campaigns:manage",
+      "campaigns:manage_all"
+    ]
+  },
+  {
+    "group": "bounces",
+    "permissions": [
+      "bounces:get",
+      "bounces:manage",
+      "webhooks:post_bounce"
+    ]
+  },
+  {
+    "group": "media",
+    "permissions": ["media:get", "media:manage"]
+  },
+  {
+    "group": "templates",
+    "permissions": ["templates:get", "templates:manage"]
+  },
+  {
+    "group": "users",
+    "permissions": [
+      "users:get",
+      "users:manage",
+      "roles:get",
+      "roles:manage"
+    ]
+  },
+  {
+    "group": "settings",
+    "permissions": [
+      "settings:get",
+      "settings:manage",
+      "settings:maintain"
+    ]
+  }
+]
+```
+
+## List Roles
+
+List roles define per-list access permissions. Each list can be assigned view or manage permissions. Configure in **Admin → Users → List roles**.
+
+<Note>
+  The `lists:get_all` and `lists:manage_all` user permissions override all per-list permissions.
+</Note>
+
+### List Permission Types
+
+<ParamField path="lists:get" type="list_permission">
+  View-only access to specific lists. Can see subscribers and campaigns for those lists.
+</ParamField>
+
+<ParamField path="lists:manage" type="list_permission">
+  Full management access to specific lists. Can modify subscribers, create campaigns, etc.
+</ParamField>
+
+### Creating List Roles
+
+1. Go to **Admin → Users → List roles**
+2. Click **New list role**
+3. Name the role (e.g., "Marketing Team Lists")
+4. Select lists and assign permissions:
+   - **View**: Read-only access
+   - **Manage**: Full control
+
+### Example List Role
+
+```json
+{
+  "name": "Marketing Team",
+  "lists": [
+    {"list_id": 1, "permissions": ["lists:get", "lists:manage"]},
+    {"list_id": 2, "permissions": ["lists:get"]},
+    {"list_id": 5, "permissions": ["lists:get", "lists:manage"]}
+  ]
+}
+```
+
+This role grants:
+- Full access to lists 1 and 5
+- Read-only access to list 2
+- No access to other lists
+
+## Creating Users
+
+### Via Admin Interface
+
+1. Go to **Admin → Users**
+2. Click **New user**
+3. Fill in user details:
+   - **Username**: Unique login name
+   - **Email**: User's email address
+   - **Name**: Display name
+   - **Type**: User or API
+   - **User role**: Select a user role
+   - **List role**: (Optional) Select a list role
+   - **Status**: Enabled or Disabled
+
+### API User Tokens
+
+When creating an API user, listmonk generates a secret token automatically. Use this token for authentication:
+
+```bash
+curl -u 'api_username:SECRET_TOKEN' http://localhost:9000/api/subscribers
+```
+
+## Super Admin Role
+
+Role ID 1 is reserved for Super Admin and cannot be modified or deleted. Super Admin has all permissions by default.
+
+<Warning>
+  The `users:manage` permission allows creating Super Admin users. Only grant this to trusted administrators.
+</Warning>
+
+## Security Best Practices
+
+### subscribers:sql_query Warning
+
+The `subscribers:sql_query` permission is powerful but dangerous:
+
+- Allows arbitrary SQL queries on the database
+- Bypasses all list-level permissions
+- Can access Postgres system features
+- Read-only transaction, but can view all data
+
+<Warning>
+  Only grant `subscribers:sql_query` to highly trusted users. Consider creating a restricted Postgres role if assigning to multiple users.
+</Warning>
+
+### Creating a Restricted Postgres Role
+
+For users with `subscribers:sql_query` permission:
+
+```sql
+CREATE ROLE listmonk_app WITH
+    LOGIN
+    PASSWORD 'secure_password'
+    NOSUPERUSER
+    NOCREATEDB
+    NOCREATEROLE
+    NOREPLICATION;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO listmonk_app;
+```
+
+### users:manage Warning
+
+The `users:manage` permission allows:
+- Creating users with any role, including Super Admin
+- Modifying existing user permissions
+- Elevating privileges
+
+<Warning>
+  Only grant `users:manage` to Super Admin level accounts.
+</Warning>
+
+## Example Role Configurations
+
+### Campaign Manager Role
+
+```json
+{
+  "name": "Campaign Manager",
+  "permissions": [
+    "campaigns:get_all",
+    "campaigns:manage",
+    "campaigns:get_analytics",
+    "lists:get_all",
+    "subscribers:get_all",
+    "templates:get",
+    "media:get"
+  ]
+}
+```
+
+### Content Editor Role
+
+```json
+{
+  "name": "Content Editor",
+  "permissions": [
+    "campaigns:get",
+    "templates:get",
+    "templates:manage",
+    "media:get",
+    "media:manage"
+  ]
+}
+```
+
+### Analyst Role
+
+```json
+{
+  "name": "Analyst",
+  "permissions": [
+    "campaigns:get_all",
+    "campaigns:get_analytics",
+    "subscribers:get_all",
+    "subscribers:sql_query",
+    "lists:get_all",
+    "bounces:get"
+  ]
+}
+```
+
+### API Integration Role
+
+```json
+{
+  "name": "API Integration",
+  "permissions": [
+    "subscribers:get",
+    "subscribers:manage",
+    "tx:send",
+    "lists:get_all"
+  ]
+}
+```
+
+## Database Schema
+
+### Roles Table
+
+```sql
+CREATE TABLE roles (
+    id               SERIAL PRIMARY KEY,
+    type             role_type NOT NULL DEFAULT 'user',
+    parent_id        INTEGER NULL REFERENCES roles(id),
+    list_id          INTEGER NULL REFERENCES lists(id),
+    permissions      TEXT[] NOT NULL DEFAULT '{}',
+    name             TEXT NULL,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+### Users Table
+
+```sql
+CREATE TABLE users (
+    id               SERIAL PRIMARY KEY,
+    username         TEXT NOT NULL UNIQUE,
+    password_login   BOOLEAN NOT NULL DEFAULT false,
+    password         TEXT NULL,
+    email            TEXT NOT NULL UNIQUE,
+    name             TEXT NOT NULL,
+    type             user_type NOT NULL DEFAULT 'user',
+    user_role_id     INTEGER NOT NULL REFERENCES roles(id),
+    list_role_id     INTEGER NULL REFERENCES roles(id),
+    status           user_status NOT NULL DEFAULT 'disabled',
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+```
+
+## API Endpoints
+
+From `cmd/roles.go`:
+
+### Get User Roles
+
+```bash
+GET /api/roles
+```
+
+### Get List Roles
+
+```bash
+GET /api/list-roles
+```
+
+### Create User Role
+
+```bash
+POST /api/roles
+
+{
+  "name": "Marketing Manager",
+  "permissions": [
+    "campaigns:manage",
+    "campaigns:get_all",
+    "subscribers:get_all",
+    "lists:get_all"
+  ]
+}
+```
+
+### Update User Role
+
+```bash
+PUT /api/roles/{id}
+```
+
+<Note>
+  Role ID 1 (Super Admin) cannot be modified.
+</Note>
+
+### Delete Role
+
+```bash
+DELETE /api/roles/{id}
+```
+
+## Troubleshooting
+
+### User can't access certain features
+
+- Check user's assigned user role has required permissions
+- Verify user status is "enabled"
+- Check if list-level permissions are needed
+
+### User can't see specific lists
+
+- Assign a list role with permissions for those lists
+- OR grant `lists:get_all` in their user role
+
+### API authentication failing
+
+- Verify API user token hasn't changed
+- Check user type is set to "API"
+- Ensure user status is "enabled"
+
+### Can't modify Super Admin role
+
+- Role ID 1 is protected and cannot be edited
+- Create a new role instead

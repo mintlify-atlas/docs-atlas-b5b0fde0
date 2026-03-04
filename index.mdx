@@ -1,97 +1,200 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Listmonk Documentation
+description: High performance, self-hosted newsletter and mailing list manager
+mode: custom
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#0f1117] bg-white py-20">
+  <div className="absolute inset-0 bg-gradient-to-br dark:from-[#0454d4]/10 dark:via-transparent dark:to-[#fc6c04]/10 from-[#0454d4]/5 via-transparent to-[#fc6c04]/5" />
+  
+  <div className="relative max-w-7xl mx-auto px-6 lg:px-8">
+    <div className="text-center">
+      <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold dark:text-gray-100 text-gray-900 mb-6">
+        Welcome to Listmonk
+      </h1>
+      <p className="text-lg sm:text-xl dark:text-gray-400 text-gray-600 max-w-3xl mx-auto mb-10">
+        High performance, self-hosted newsletter and mailing list manager with a modern dashboard. Built for speed, packed into a single binary.
+      </p>
+      <div className="flex flex-wrap justify-center gap-4">
+        <a 
+          href="/quickstart" 
+          className="inline-flex items-center px-8 py-3.5 rounded-full bg-[#040404] dark:bg-[#0454d4] text-white font-semibold hover:bg-[#040404]/90 dark:hover:bg-[#0454d4]/90 transition-colors no-underline"
+        >
+          Get Started
+        </a>
+        <a 
+          href="/api/overview" 
+          className="inline-flex items-center px-8 py-3.5 rounded-full dark:border-white/30 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-gray-300 bg-gray-100 text-gray-900 hover:bg-gray-200 border font-semibold transition-colors no-underline"
+        >
+          API Reference
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Quick Start</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600">Get Listmonk running in minutes</p>
+  </div>
+  
+  <Steps>
+    <Step title="Install with Docker">
+      Download and run Listmonk using Docker Compose:
+      
+      ```bash
+      # Download the compose file
+      curl -LO https://github.com/knadh/listmonk/raw/master/docker-compose.yml
+      
+      # Run the services
+      docker compose up -d
+      ```
+      
+      Visit `http://localhost:9000` to access your Listmonk instance.
+    </Step>
+    
+    <Step title="Create your first list">
+      Navigate to **Lists** in the dashboard and create a new mailing list. Choose between single opt-in (subscribers are immediately added) or double opt-in (subscribers must confirm via email).
+    </Step>
+    
+    <Step title="Import subscribers">
+      Go to **Subscribers** → **Import** to bulk import your subscriber list via CSV or API. Map your CSV columns to subscriber attributes and assign subscribers to lists.
+    </Step>
+    
+    <Step title="Send your first campaign">
+      Create a campaign under **Campaigns**, select your target lists, design your email with the rich text editor or HTML, and send or schedule it.
+    </Step>
+  </Steps>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Core Features</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600">Everything you need to manage newsletters and campaigns</p>
+  </div>
+  
+  <CardGroup cols={2}>
+    <Card title="Subscribers & Lists" icon="users" href="/features/subscribers-and-lists">
+      Manage subscribers with custom attributes, organize them into lists, and segment by any criteria
+    </Card>
+    <Card title="Campaigns" icon="envelope" href="/features/campaigns">
+      Create, schedule, and send email campaigns with rich text, HTML, or markdown editors
+    </Card>
+    <Card title="Templates" icon="palette" href="/features/templates">
+      Design reusable HTML templates with Go templating for dynamic content
+    </Card>
+    <Card title="Analytics" icon="chart-line" href="/features/analytics">
+      Track campaign views, link clicks, and subscriber engagement with detailed analytics
+    </Card>
+    <Card title="Transactional Emails" icon="bolt" href="/advanced/transactional">
+      Send transactional emails via API for welcome emails, password resets, and order confirmations
+    </Card>
+    <Card title="Bounce Management" icon="shield-check" href="/advanced/bounces">
+      Automatically process bounces via webhooks or POP3 mailboxes to maintain list hygiene
+    </Card>
+  </CardGroup>
+</div>
 
-## Make it yours
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">Advanced Capabilities</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600">Powerful features for growing teams</p>
+  </div>
+  
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <a href="/advanced/roles-permissions" className="group block rounded-2xl dark:border-[#27272a] dark:bg-[#1a1d27] dark:hover:border-[#0454d4] border-gray-200 bg-white hover:border-[#0454d4] border overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Role-Based Access Control</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-4">Create user and list roles with granular permissions for team collaboration</p>
+        <div className="flex items-center text-sm dark:text-gray-400 text-gray-600 dark:group-hover:text-[#0454d4] group-hover:text-[#0454d4]">
+          <span>Learn more</span>
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/advanced/messengers" className="group block rounded-2xl dark:border-[#27272a] dark:bg-[#1a1d27] dark:hover:border-[#0454d4] border-gray-200 bg-white hover:border-[#0454d4] border overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Multi-Channel Messaging</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-4">Send campaigns via SMTP, SMS, FCM push notifications, or custom messengers</p>
+        <div className="flex items-center text-sm dark:text-gray-400 text-gray-600 dark:group-hover:text-[#0454d4] group-hover:text-[#0454d4]">
+          <span>Learn more</span>
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/advanced/oidc" className="group block rounded-2xl dark:border-[#27272a] dark:bg-[#1a1d27] dark:hover:border-[#0454d4] border-gray-200 bg-white hover:border-[#0454d4] border overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">OIDC Authentication</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-4">Integrate with your identity provider for SSO and centralized user management</p>
+        <div className="flex items-center text-sm dark:text-gray-400 text-gray-600 dark:group-hover:text-[#0454d4] group-hover:text-[#0454d4]">
+          <span>Learn more</span>
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/features/querying-segmentation" className="group block rounded-2xl dark:border-[#27272a] dark:bg-[#1a1d27] dark:hover:border-[#0454d4] border-gray-200 bg-white hover:border-[#0454d4] border overflow-hidden transition-colors no-underline">
+      <div className="p-6">
+        <h3 className="text-base font-semibold dark:text-white text-gray-900 mb-2">Advanced Segmentation</h3>
+        <p className="text-sm dark:text-gray-400 text-gray-600 mb-4">Query and segment subscribers using SQL-like expressions based on custom attributes</p>
+        <div className="flex items-center text-sm dark:text-gray-400 text-gray-600 dark:group-hover:text-[#0454d4] group-hover:text-[#0454d4]">
+          <span>Learn more</span>
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
 
-Design a docs site that looks great and empowers your users.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="text-center mb-12">
+    <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-3">API & Integration</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600">Automate and integrate with your existing tools</p>
+  </div>
+  
+  <CardGroup cols={3}>
+    <Card title="REST API" icon="code" href="/api/overview">
+      Complete REST API for managing subscribers, lists, campaigns, and more
+    </Card>
+    <Card title="Authentication" icon="key" href="/api/authentication">
+      Secure your API with BasicAuth or token-based authentication
+    </Card>
+    <Card title="SDKs" icon="cube" href="/api/sdks">
+      Community SDKs for Go, Python, Node.js, PHP, and more
+    </Card>
+  </CardGroup>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl dark:bg-[#1a1d27] dark:border-[#27272a] bg-gray-50 border-gray-200 border p-10 text-center">
+    <h2 className="text-3xl font-semibold dark:text-white text-gray-900 mb-4">Ready to get started?</h2>
+    <p className="text-base dark:text-gray-400 text-gray-600 mb-8 max-w-2xl mx-auto">
+      Install Listmonk in minutes and take control of your email campaigns with a powerful, self-hosted solution.
+    </p>
+    <div className="flex flex-wrap justify-center gap-4">
+      <a 
+        href="/installation" 
+        className="inline-flex items-center px-8 py-3.5 rounded-full bg-[#040404] dark:bg-[#0454d4] text-white font-semibold hover:bg-[#040404]/90 dark:hover:bg-[#0454d4]/90 transition-colors no-underline"
+      >
+        View Installation Guide
+      </a>
+      <a 
+        href="https://github.com/knadh/listmonk" 
+        className="inline-flex items-center px-8 py-3.5 rounded-full dark:border-white/30 dark:bg-white/10 dark:text-white dark:hover:bg-white/20 border-gray-300 bg-white text-gray-900 hover:bg-gray-100 border font-semibold transition-colors no-underline"
+      >
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</div>

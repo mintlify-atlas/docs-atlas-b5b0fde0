@@ -1,0 +1,317 @@
+---
+title: Analytics and Tracking
+description: Track campaign performance with email opens, link clicks, and detailed subscriber engagement metrics
+---
+
+Listmonk provides comprehensive analytics to measure campaign performance and subscriber engagement through tracking pixels, link tracking, and detailed metrics.
+
+## Tracking Pixels
+
+A **tracking pixel** is a tiny, invisible image inserted into email bodies to track email views. When a subscriber opens an email and the images load, the tracking pixel logs a view.
+
+### How It Works
+
+The tracking pixel is inserted using the `{{ TrackView }}` template function, typically placed once in the template footer:
+
+```html
+<footer>
+  Copyright 2024. All rights Reserved.
+  
+  <!-- Tracking pixel inserted here -->
+  {{ TrackView }}
+</footer>
+```
+
+### Privacy Considerations
+
+<Warning>
+Tracking pixels carry privacy implications and should be used in compliance with regulations like GDPR. Listmonk allows tracking reads anonymously without associating them to specific subscribers.
+</Warning>
+
+From the concepts documentation:
+> The tracking pixel is a tiny, invisible image that is inserted into an email body to track email views. This allows measuring the read rate of emails. While this is exceedingly common in email campaigns, it carries privacy implications and should be used in compliance with rules and regulations such as GDPR. It is possible to track reads anonymously without associating an email read to a subscriber.
+
+## Link Click Tracking
+
+Listmonk tracks clicks on every link in emails, allowing you to measure clickthrough rates and subscriber engagement.
+
+### Enabling Link Tracking
+
+Use the `TrackLink` function to wrap URLs:
+
+```html
+<!-- Full function syntax -->
+<a href="{{ TrackLink "https://example.com" }}">Visit our site</a>
+
+<!-- Shorthand syntax -->
+<a href="https://example.com@TrackLink">Visit our site</a>
+```
+
+When a subscriber clicks the link, listmonk logs the click and redirects them to the target URL.
+
+### Privacy Mode
+
+<Info>
+Like tracking pixels, link clicks can be tracked anonymously without associating them to specific subscribers.
+</Info>
+
+## Campaign Views Schema
+
+Campaign views are stored in the database with timestamps and subscriber associations:
+
+<CodeGroup>
+```sql schema.sql
+DROP TABLE IF EXISTS campaign_views CASCADE;
+CREATE TABLE campaign_views (
+    id               BIGSERIAL PRIMARY KEY,
+    campaign_id      INTEGER NOT NULL REFERENCES campaigns(id) 
+                     ON DELETE CASCADE ON UPDATE CASCADE,
+
+    -- Subscribers may be deleted, but the view counts should remain.
+    subscriber_id    INTEGER NULL REFERENCES subscribers(id) 
+                     ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DROP INDEX IF EXISTS idx_views_camp_id;
+CREATE INDEX idx_views_camp_id ON campaign_views(campaign_id);
+
+DROP INDEX IF EXISTS idx_views_subscriber_id;
+CREATE INDEX idx_views_subscriber_id ON campaign_views(subscriber_id);
+
+DROP INDEX IF EXISTS idx_views_date;
+CREATE INDEX idx_views_date ON campaign_views(
+    (TIMEZONE('UTC', created_at)::DATE)
+);
+```
+</CodeGroup>
+
+### Key Design Features
+
+- **Preserved counts**: When subscribers are deleted, view counts remain (subscriber_id set to NULL)
+- **Date indexing**: Views are indexed by date for fast time-based queries
+- **Campaign association**: All views are linked to campaigns for reporting
+
+## Link Clicks Schema
+
+Link clicks are tracked with detailed information:
+
+<CodeGroup>
+```sql schema.sql
+DROP TABLE IF EXISTS links CASCADE;
+CREATE TABLE links (
+    id               SERIAL PRIMARY KEY,
+    uuid             uuid NOT NULL UNIQUE,
+    url              TEXT NOT NULL UNIQUE,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DROP TABLE IF EXISTS link_clicks CASCADE;
+CREATE TABLE link_clicks (
+    id               BIGSERIAL PRIMARY KEY,
+    campaign_id      INTEGER NULL REFERENCES campaigns(id) 
+                     ON DELETE CASCADE ON UPDATE CASCADE,
+    link_id          INTEGER NOT NULL REFERENCES links(id) 
+                     ON DELETE CASCADE ON UPDATE CASCADE,
+
+    -- Subscribers may be deleted, but the link counts should remain.
+    subscriber_id    INTEGER NULL REFERENCES subscribers(id) 
+                     ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at       TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+DROP INDEX IF EXISTS idx_clicks_camp_id;
+CREATE INDEX idx_clicks_camp_id ON link_clicks(campaign_id);
+
+DROP INDEX IF EXISTS idx_clicks_link_id;
+CREATE INDEX idx_clicks_link_id ON link_clicks(link_id);
+
+DROP INDEX IF EXISTS idx_clicks_sub_id;
+CREATE INDEX idx_clicks_sub_id ON link_clicks(subscriber_id);
+
+DROP INDEX IF EXISTS idx_clicks_date;
+CREATE INDEX idx_clicks_date ON link_clicks(
+    (TIMEZONE('UTC', created_at)::DATE)
+);
+```
+</CodeGroup>
+
+### Two-Table Design
+
+1. **links table**: Stores unique URLs (deduplicated)
+2. **link_clicks table**: Records each individual click event
+
+This design efficiently handles multiple clicks on the same URL across campaigns.
+
+## Campaign Analytics API
+
+Retrieve view and click analytics for campaigns:
+
+<CodeGroup>
+```go cmd/campaigns.go
+// GetCampaignViewAnalytics retrieves view counts for a campaign.
+func (a *App) GetCampaignViewAnalytics(c echo.Context) error {
+    ids, err := parseStringIDs(c.Request().URL.Query()["id"])
+    if err != nil {
+        return echo.NewHTTPError(http.StatusBadRequest,
+            a.i18n.Ts("globals.messages.errorInvalidIDs", "error", err.Error()))
+    }
+
+    if len(ids) == 0 {
+        return echo.NewHTTPError(http.StatusBadRequest,
+            a.i18n.Ts("globals.messages.missingFields", "name", "`id`"))
+    }
+
+    var (
+        typ  = c.Param("type")
+        from = c.QueryParams().Get("from")
+        to   = c.QueryParams().Get("to")
+    )
+
+    // Campaign link stats.
+    if typ == "links" {
+        out, err := a.core.GetCampaignAnalyticsLinks(ids, typ, from, to)
+        if err != nil {
+            return err
+        }
+        return c.JSON(http.StatusOK, okResp{out})
+    }
+
+    // Get the analytics numbers from the DB for the campaigns.
+    out, err := a.core.GetCampaignAnalyticsCounts(ids, typ, from, to)
+    if err != nil {
+        return err
+    }
+
+    return c.JSON(http.StatusOK, okResp{out})
+}
+```
+</CodeGroup>
+
+The API supports:
+- Multiple campaign IDs
+- Date range filtering (`from` and `to` parameters)
+- Separate endpoints for view counts and link statistics
+
+## Dashboard Analytics
+
+Listmonk maintains materialized views for fast dashboard statistics:
+
+<CodeGroup>
+```sql schema.sql
+DROP MATERIALIZED VIEW IF EXISTS mat_dashboard_charts;
+CREATE MATERIALIZED VIEW mat_dashboard_charts AS
+    WITH clicks AS (
+        SELECT JSON_AGG(ROW_TO_JSON(row))
+        FROM (
+            WITH viewDates AS (
+              SELECT TIMEZONE('UTC', created_at)::DATE AS to_date,
+                     TIMEZONE('UTC', created_at)::DATE - INTERVAL '30 DAY' AS from_date
+                     FROM link_clicks ORDER BY id DESC LIMIT 1
+            )
+            SELECT COUNT(*) AS count, created_at::DATE as date FROM link_clicks
+              WHERE TIMEZONE('UTC', created_at)::DATE BETWEEN 
+                    (SELECT from_date FROM viewDates) AND 
+                    (SELECT to_date FROM viewDates)
+              GROUP by date ORDER BY date
+        ) row
+    ),
+    views AS (
+        SELECT JSON_AGG(ROW_TO_JSON(row))
+        FROM (
+            WITH viewDates AS (
+              SELECT TIMEZONE('UTC', created_at)::DATE AS to_date,
+                     TIMEZONE('UTC', created_at)::DATE - INTERVAL '30 DAY' AS from_date
+                     FROM campaign_views ORDER BY id DESC LIMIT 1
+            )
+            SELECT COUNT(*) AS count, created_at::DATE as date FROM campaign_views
+              WHERE TIMEZONE('UTC', created_at)::DATE BETWEEN 
+                    (SELECT from_date FROM viewDates) AND 
+                    (SELECT to_date FROM viewDates)
+              GROUP by date ORDER BY date
+        ) row
+    )
+    SELECT NOW() AS updated_at, 
+           JSON_BUILD_OBJECT('link_clicks', COALESCE((SELECT * FROM clicks), '[]'),
+                            'campaign_views', COALESCE((SELECT * FROM views), '[]')
+                          ) AS data;
+```
+</CodeGroup>
+
+This materialized view provides:
+- 30-day rolling window of clicks and views
+- Daily aggregated counts
+- JSON format for easy frontend consumption
+
+## Subscriber Activity
+
+Track individual subscriber engagement:
+
+<CodeGroup>
+```go cmd/subscribers.go
+// GetSubscriberActivity handles the retrieval of a subscriber's 
+// campaign views and link clicks.
+func (a *App) GetSubscriberActivity(c echo.Context) error {
+    user := auth.GetUser(c)
+
+    // Check if the user has access to the subscriber.
+    id := getID(c)
+    if err := a.hasSubPerm(user, []int{id}); err != nil {
+        return err
+    }
+
+    // Fetch the subscriber activity from the DB.
+    out, err := a.core.GetSubscriberActivity(id)
+    if err != nil {
+        return err
+    }
+
+    return c.JSON(http.StatusOK, okResp{out})
+}
+```
+</CodeGroup>
+
+## Privacy Settings
+
+Listmonk provides granular privacy controls:
+
+<CodeGroup>
+```sql schema.sql
+INSERT INTO settings (key, value) VALUES
+    ('privacy.individual_tracking', 'false'),
+    ('privacy.disable_tracking', 'false'),
+    ('privacy.exportable', '["profile", "subscriptions", "campaign_views", "link_clicks"]');
+```
+</CodeGroup>
+
+### Privacy Options
+
+- **individual_tracking**: Enable/disable tracking per subscriber
+- **disable_tracking**: Completely disable all tracking
+- **exportable**: Control what data subscribers can export (GDPR compliance)
+
+## Querying Campaign Views
+
+You can segment subscribers based on campaign views using SQL expressions:
+
+<CodeGroup>
+```sql Query Example
+-- Find all subscribers who viewed a specific campaign
+EXISTS(
+    SELECT 1 FROM campaign_views 
+    WHERE campaign_views.subscriber_id = subscribers.id 
+    AND campaign_views.campaign_id = 123
+)
+```
+</CodeGroup>
+
+<Card title="Learn More About Querying" icon="database" href="/features/querying-segmentation">
+  Discover advanced SQL querying for subscriber segmentation
+</Card>
+
+## Performance Considerations
+
+- **Indexes**: All tracking tables are heavily indexed for fast queries
+- **Materialized views**: Dashboard stats are pre-computed for instant loading
+- **Date partitioning**: Date-based indexes enable efficient time-range queries
+- **Nullable subscribers**: Deleted subscribers don't cascade-delete analytics data

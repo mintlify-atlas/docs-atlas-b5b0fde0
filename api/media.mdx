@@ -1,0 +1,238 @@
+---
+title: Media API
+description: API endpoints for managing media files in Listmonk
+---
+
+Manage media files including images and documents for use in campaigns and templates. Supports upload, retrieval, and deletion of media files.
+
+## Get Media Files
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/media</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve all uploaded media files.
+
+### Response
+
+<ResponseField name="data" type="array">
+  Array of media objects.
+  <ResponseField name="id" type="number">
+    Media file's unique ID.
+  </ResponseField>
+  <ResponseField name="uuid" type="string">
+    Media file's UUID.
+  </ResponseField>
+  <ResponseField name="filename" type="string">
+    Original filename.
+  </ResponseField>
+  <ResponseField name="content_type" type="string">
+    MIME type of the file.
+  </ResponseField>
+  <ResponseField name="created_at" type="string">
+    Timestamp when file was uploaded.
+  </ResponseField>
+  <ResponseField name="thumb_url" type="string">
+    URL to thumbnail (for images).
+  </ResponseField>
+  <ResponseField name="url" type="string">
+    Full URL to the media file.
+  </ResponseField>
+  <ResponseField name="provider" type="string">
+    Storage provider (e.g., filesystem, s3).
+  </ResponseField>
+  <ResponseField name="meta" type="object">
+    Additional metadata.
+  </ResponseField>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X GET 'http://localhost:9000/api/media'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": [
+        {
+            "id": 1,
+            "uuid": "ec7b45ce-1408-4e5c-924e-965326a20287",
+            "filename": "Media file",
+            "created_at": "2020-04-08T22:43:45.080058+01:00",
+            "thumb_url": "/uploads/image_thumb.jpg",
+            "uri": "/uploads/image.jpg"
+        }
+    ]
+}
+```
+</ResponseExample>
+
+## Get Media by ID
+
+<api-endpoint>
+  <endpoint>
+    <method>GET</method>
+    <path>/api/media/{media_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Retrieve a specific media file.
+
+### Path Parameters
+
+<ParamField path="media_id" type="number" required>
+  Media file's ID.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u 'api_username:access_token' 'http://localhost:9000/api/media/7'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+  "data": {
+    "id": 7,
+    "uuid": "62e32e97-d6ca-4441-923f-b62607000dd1",
+    "filename": "ResumeB.pdf",
+    "content_type": "application/pdf",
+    "created_at": "2024-08-06T11:28:53.888257+05:30",
+    "thumb_url": null,
+    "provider": "filesystem",
+    "meta": {},
+    "url": "http://localhost:9000/uploads/ResumeB.pdf"
+  }
+}
+```
+</ResponseExample>
+
+## Upload Media
+
+<api-endpoint>
+  <endpoint>
+    <method>POST</method>
+    <path>/api/media</path>
+  </endpoint>
+</api-endpoint>
+
+Upload a media file.
+
+### Body Parameters
+
+<ParamField body="file" type="file" required>
+  Media file to upload. Send as multipart/form-data.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X POST 'http://localhost:9000/api/media' \
+  --header 'Content-Type: multipart/form-data' \
+  --form 'file=@/path/to/image.jpg'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": {
+        "id": 1,
+        "uuid": "ec7b45ce-1408-4e5c-924e-965326a20287",
+        "filename": "Media file",
+        "created_at": "2020-04-08T22:43:45.080058+01:00",
+        "thumb_uri": "/uploads/image_thumb.jpg",
+        "uri": "/uploads/image.jpg"
+    }
+}
+```
+</ResponseExample>
+
+## Delete Media
+
+<api-endpoint>
+  <endpoint>
+    <method>DELETE</method>
+    <path>/api/media/{media_id}</path>
+  </endpoint>
+</api-endpoint>
+
+Delete an uploaded media file.
+
+### Path Parameters
+
+<ParamField path="media_id" type="number" required>
+  ID of media file to delete.
+</ParamField>
+
+<RequestExample>
+```bash cURL
+curl -u "api_user:token" -X DELETE 'http://localhost:9000/api/media/1'
+```
+</RequestExample>
+
+<ResponseExample>
+```json
+{
+    "data": true
+}
+```
+</ResponseExample>
+
+## Supported File Types
+
+Listmonk supports uploading various media file types:
+
+### Images
+- JPEG (`.jpg`, `.jpeg`)
+- PNG (`.png`)
+- GIF (`.gif`)
+- WebP (`.webp`)
+- SVG (`.svg`)
+
+### Documents
+- PDF (`.pdf`)
+- Text files (`.txt`)
+- CSV (`.csv`)
+
+### Other
+- ZIP archives (`.zip`)
+
+<Note>Thumbnails are automatically generated for image files.</Note>
+
+## Storage Providers
+
+Media files can be stored using different providers:
+
+### Filesystem
+Default provider that stores files on the local filesystem in the `uploads/` directory.
+
+### S3-Compatible Storage
+Supports AWS S3 and S3-compatible services (MinIO, DigitalOcean Spaces, etc.) for scalable cloud storage.
+
+## Using Media in Campaigns
+
+Once uploaded, media files can be referenced in campaign content:
+
+```html
+<img src="http://localhost:9000/uploads/image.jpg" alt="Image description">
+```
+
+Or use the media manager in the visual editor to insert images into your campaigns.
+
+## Error Responses
+
+All endpoints return standard HTTP status codes:
+
+- `200 OK` - Request successful
+- `400 Bad Request` - Invalid file or parameters
+- `401 Unauthorized` - Missing or invalid authentication
+- `404 Not Found` - Media file not found
+- `413 Payload Too Large` - File size exceeds limit
+- `415 Unsupported Media Type` - File type not allowed
+- `500 Internal Server Error` - Server error
