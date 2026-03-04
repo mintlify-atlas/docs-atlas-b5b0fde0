@@ -1,0 +1,139 @@
+{
+  "projectType": "saas",
+  "projectName": "Listmonk",
+  "projectDescription": "High performance, self-hosted newsletter and mailing list manager with a modern dashboard",
+  "theme": "almond",
+  "primaryColor": "#040404",
+  "lightColor": "#0454d4",
+  "darkColor": "#fc6c04",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart",
+              "configuration",
+              "concepts"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/subscribers-and-lists",
+              "features/campaigns",
+              "features/templates",
+              "features/analytics",
+              "features/querying-segmentation",
+              "features/archives"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/bounces",
+              "advanced/transactional",
+              "advanced/messengers",
+              "advanced/roles-permissions",
+              "advanced/oidc"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/upgrade",
+              "operations/maintenance",
+              "operations/security",
+              "operations/i18n",
+              "operations/developer-setup"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/subscribers",
+              "api/lists",
+              "api/campaigns",
+              "api/templates",
+              "api/media",
+              "api/bounces",
+              "api/transactional",
+              "api/import"
+            ]
+          },
+          {
+            "group": "SDKs",
+            "pages": [
+              "api/sdks"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Newsletter and campaign management with rich text editor",
+    "Subscriber management with custom attributes and segmentation",
+    "List management with single and double opt-in support",
+    "HTML template system with Go templating engine",
+    "Bounce handling via webhooks and POP3 mailboxes",
+    "Transactional email API",
+    "Analytics dashboard with campaign views and click tracking",
+    "Media library and file management",
+    "Role-based access control and permissions",
+    "Multi-messenger support (SMTP, SMS, FCM)",
+    "OIDC authentication integration",
+    "Import/export functionality",
+    "Public subscription pages and campaign archives",
+    "Multi-language support (i18n)"
+  ],
+  "publicApiSurface": [
+    "GET /api/subscribers",
+    "POST /api/subscribers",
+    "GET /api/subscribers/:id",
+    "PUT /api/subscribers/:id",
+    "DELETE /api/subscribers/:id",
+    "POST /api/subscribers/query",
+    "GET /api/lists",
+    "POST /api/lists",
+    "GET /api/lists/:id",
+    "PUT /api/lists/:id",
+    "DELETE /api/lists/:id",
+    "GET /api/campaigns",
+    "POST /api/campaigns",
+    "GET /api/campaigns/:id",
+    "PUT /api/campaigns/:id",
+    "DELETE /api/campaigns/:id",
+    "POST /api/campaigns/:id/status",
+    "GET /api/templates",
+    "POST /api/templates",
+    "GET /api/templates/:id",
+    "PUT /api/templates/:id",
+    "DELETE /api/templates/:id",
+    "GET /api/media",
+    "POST /api/media",
+    "DELETE /api/media/:id",
+    "GET /api/bounces",
+    "POST /api/bounces",
+    "DELETE /api/bounces/:id",
+    "POST /api/tx",
+    "GET /api/import/subscribers",
+    "POST /api/import/subscribers"
+  ]
+}
